@@ -1,15 +1,207 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FactoryAssist AI</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FactoryAssist AI — Manufacturing SOP Copilot</title>
+  <meta name="description" content="AI copilot for manufacturing SOPs, maintenance manuals and quality procedures." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f2740'/%3E%3Cpath d='M8 22V12l4 3v-3l4 3v-3l4 3v7z' fill='%2360a5fa'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="/static/css/styles.css" />
 </head>
 <body>
-    <main>
-        <h1>FactoryAssist AI</h1>
-        <p>Manufacturing SOP Copilot</p>
-        <p>Stage 1 &mdash; project foundation only. The chat interface is added in a later stage.</p>
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <symbol id="i-dashboard" viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M5 4h6a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2zM19 4h-6a2 2 0 0 0-2 2v14h6a2 2 0 0 0 2-2z"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 11v6M12 7.5v.5"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M4 12 20 4l-6 16-3-7z"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h6M10 16h6"/></symbol>
+</svg>
+
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"><svg><use href="#i-doc"/></svg></span>
+      <span class="brand-text">
+        <strong>FactoryAssist AI</strong>
+        <small>Manufacturing SOP Copilot</small>
+      </span>
+    </div>
+
+    <nav class="nav" aria-label="Primary">
+      <button class="nav-item is-active" type="button" data-view="dashboard"><svg><use href="#i-dashboard"/></svg><span>Dashboard</span></button>
+      <button class="nav-item" type="button" data-view="assistant"><svg><use href="#i-chat"/></svg><span>AI Assistant</span></button>
+      <button class="nav-item" type="button" data-view="knowledge"><svg><use href="#i-book"/></svg><span>Knowledge Base</span></button>
+      <button class="nav-item" type="button" data-view="about"><svg><use href="#i-info"/></svg><span>System Info</span></button>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="status-chip" id="sidebar-status"><span class="dot dot-idle"></span><span>Checking status…</span></div>
+      <p class="sidebar-meta">Hosur Plant · controlled documents</p>
+      <p class="sidebar-meta" id="sidebar-version">v1.0.0</p>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim" hidden></div>
+
+  <div class="main">
+    <header class="topbar">
+      <button class="icon-btn menu-btn" id="menu-btn" type="button" aria-label="Open navigation"><svg><use href="#i-menu"/></svg></button>
+      <div class="topbar-copy">
+        <h1 id="page-title">Manufacturing dashboard</h1>
+        <p id="page-subtitle">Grounded answers from the plant's active SOPs, maintenance manuals and quality procedures.</p>
+      </div>
+      <div class="topbar-badges">
+        <span class="badge badge-muted" id="badge-ai">AI service —</span>
+        <span class="badge badge-muted" id="badge-index">Index —</span>
+      </div>
+    </header>
+
+    <main class="content">
+      <section class="view" id="view-dashboard">
+        <div class="kpi-grid">
+          <article class="kpi"><p class="kpi-label">Active documents</p><p class="kpi-value" id="kpi-docs">—</p><p class="kpi-hint" id="kpi-docs-hint">Loading corpus…</p></article>
+          <article class="kpi"><p class="kpi-label">Indexed chunks</p><p class="kpi-value" id="kpi-chunks">—</p><p class="kpi-hint" id="kpi-chunks-hint">Checking vector store…</p></article>
+          <article class="kpi"><p class="kpi-label">Tracked revisions</p><p class="kpi-value" id="kpi-revisions">—</p><p class="kpi-hint" id="kpi-revisions-hint">Active revision per document code</p></article>
+          <article class="kpi"><p class="kpi-label">AI service</p><p class="kpi-value kpi-value-sm" id="kpi-ai">—</p><p class="kpi-hint" id="kpi-ai-hint">Gemini configuration</p></article>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div><h2>Active document corpus</h2><p>Only these revisions are searchable in the assistant.</p></div>
+            <button class="btn btn-ghost" type="button" id="refresh-dashboard"><svg><use href="#i-refresh"/></svg>Refresh</button>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Code</th><th>Document</th><th>Rev</th><th>Pages</th><th>Chunks</th><th>Status</th></tr></thead>
+              <tbody id="dashboard-documents"><tr><td colspan="6" class="table-empty">Loading documents…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><div><h2>Start with a real question</h2><p>These prompts go straight to the document assistant.</p></div></div>
+          <div class="chip-row" id="dashboard-chips"></div>
+        </div>
+      </section>
+
+      <section class="view" id="view-assistant" hidden>
+        <div class="chat-panel">
+          <div class="chat-head">
+            <div class="chat-head-text">
+              <span class="live-dot" id="chat-dot"></span>
+              <div><strong>Document assistant</strong><small id="chat-context">Checking document index…</small></div>
+            </div>
+            <button class="btn btn-ghost" type="button" id="clear-chat">Clear conversation</button>
+          </div>
+
+          <div class="chat-log" id="chat-log" role="log" aria-live="polite">
+            <div class="empty-state" id="chat-empty">
+              <span class="empty-icon"><svg><use href="#i-shield"/></svg></span>
+              <h2>Ask the SOPs directly</h2>
+              <p>Every answer cites the document, revision and page it came from. If the documents do not cover the question, the assistant says so instead of guessing.</p>
+              <div class="chip-row chip-row-wrap" id="assistant-chips"></div>
+            </div>
+          </div>
+
+          <form class="composer" id="composer">
+            <label class="sr-only" for="question-input">Ask a question</label>
+            <textarea id="question-input" rows="1" placeholder="e.g. What does alarm AL-104 mean?" maxlength="1200"></textarea>
+            <button class="btn btn-primary" type="submit" id="send-btn"><svg><use href="#i-send"/></svg><span>Send</span></button>
+          </form>
+          <p class="composer-hint">Enter to send · Shift + Enter for a new line · Answers are limited to the active documents.</p>
+        </div>
+      </section>
+
+      <section class="view" id="view-knowledge" hidden>
+        <div class="panel">
+          <div class="panel-head">
+            <div><h2>Active documents</h2><p>Indexed in the assistant's searchable corpus.</p></div>
+            <button class="btn btn-ghost" type="button" id="refresh-knowledge"><svg><use href="#i-refresh"/></svg>Refresh</button>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Code</th><th>Document</th><th>Rev</th><th>Pages</th><th>Chunks</th><th>Effective</th><th>Source file</th></tr></thead>
+              <tbody id="kb-documents"><tr><td colspan="7" class="table-empty">Loading documents…</td></tr></tbody>
+            </table>
+          </div>
+          <p class="panel-note">Every chunk keeps its document code, revision and page number, so an answer can always be traced back to the controlled document.</p>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><div><h2>Archived revisions</h2><p>Kept for reference only — never retrieved by the assistant.</p></div></div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Code</th><th>Document</th><th>Rev</th><th>Pages</th><th>Superseded by</th></tr></thead>
+              <tbody id="kb-archived"><tr><td colspan="5" class="table-empty">Loading archive…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" id="view-about" hidden>
+        <div class="grid-two">
+          <div class="panel">
+            <div class="panel-head"><div><h2>How it answers</h2><p>Retrieval-augmented generation over controlled documents.</p></div></div>
+            <ol class="steps">
+              <li><span>1</span><div><strong>Your question is embedded</strong><p>Sent to the Gemini embedding model configured for this deployment.</p></div></li>
+              <li><span>2</span><div><strong>Active revisions are searched</strong><p>Only chunks from current documents are retrieved; superseded revisions stay out.</p></div></li>
+              <li><span>3</span><div><strong>The evidence is passed to Gemini</strong><p>The model is instructed to answer only from those extracts.</p></div></li>
+              <li><span>4</span><div><strong>Sources are returned</strong><p>Document title, code, revision and page for every citation.</p></div></li>
+            </ol>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head"><div><h2>Runtime configuration</h2><p>Read from the server's .env file.</p></div></div>
+            <dl class="kv">
+              <div><dt>Generation model</dt><dd id="cfg-generation">—</dd></div>
+              <div><dt>Embedding model</dt><dd id="cfg-embedding">—</dd></div>
+              <div><dt>Collection</dt><dd id="cfg-collection">—</dd></div>
+              <div><dt>Retrieval</dt><dd id="cfg-topk">—</dd></div>
+              <div><dt>Minimum similarity</dt><dd id="cfg-similarity">—</dd></div>
+              <div><dt>Corpus built</dt><dd id="cfg-manifest">—</dd></div>
+            </dl>
+            <div class="callout" id="config-callout" hidden>
+              <strong>Gemini key not configured.</strong>
+              <p>Add <code>GEMINI_API_KEY</code> to <code>.env</code> in the project root and restart the server. Then run the ingestion command to index the documents.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><div><h2>API endpoints</h2><p>Used by this dashboard; also available to other clients.</p></div></div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Method</th><th>Path</th><th>Purpose</th></tr></thead>
+              <tbody>
+                <tr><td><span class="method">GET</span></td><td><code>/</code></td><td>Dashboard in a browser, application info for API clients</td></tr>
+                <tr><td><span class="method">GET</span></td><td><code>/health</code></td><td>Health check</td></tr>
+                <tr><td><span class="method">GET</span></td><td><code>/api/status</code></td><td>Service availability, corpus and retrieval configuration</td></tr>
+                <tr><td><span class="method method-post">POST</span></td><td><code>/api/chat</code></td><td>Grounded answer with document sources</td></tr>
+                <tr><td><span class="method">GET</span></td><td><code>/docs</code></td><td>Interactive OpenAPI documentation</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><div><h2>Known limitations</h2><p>Stated plainly, so the tool is not trusted beyond what it does.</p></div></div>
+          <ul class="limits">
+            <li>Answers are limited to the indexed documents and their current revisions.</li>
+            <li>Scanned pages without a text layer are reported as extraction warnings, not read with OCR.</li>
+            <li>Tables are extracted as plain text, so very wide tables may read awkwardly.</li>
+            <li>The assistant refuses when evidence is weak; it is not a substitute for the controlled SOP or the responsible supervisor.</li>
+            <li>Runs locally on the plant network; no authentication is implemented in this build.</li>
+          </ul>
+        </div>
+      </section>
     </main>
+
+    <footer class="app-foot">FactoryAssist AI · Local deployment · Answers are only as reliable as the controlled documents behind them.</footer>
+  </div>
+</div>
+<script src="/static/js/app.js" defer></script>
 </body>
 </html>

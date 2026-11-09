@@ -1,1 +1,1 @@
-"""API routers for FactoryAssist AI (added in later stages)."""
+"""API routers: system health/status and the grounded chat endpoint."""

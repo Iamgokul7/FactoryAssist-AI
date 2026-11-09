@@ -1,6 +1,7 @@
-"""Business services.
+"""Business services for FactoryAssist AI.
 
-Stage 2 provides PDF text extraction and chunking
-(``pdf_processor``, ``text_chunker``, ``document_registry``,
-``document_pipeline``). Embeddings, retrieval and chat arrive in later stages.
+Document processing (``pdf_processor``, ``text_chunker``, ``document_registry``,
+``document_pipeline``), retrieval and AI (``embedding_service``, ``vector_store``,
+``ingestion_service``, ``rag_service``), shared Gemini client construction and
+read-only manifest access (``knowledge_base``).
 """

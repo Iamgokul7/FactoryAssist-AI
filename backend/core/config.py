@@ -33,11 +33,15 @@ class Settings(BaseSettings):
     app_version: str = "1.0.0"
     debug: bool = True
 
-    # --- Google Gemini (AI integration arrives in a later stage) ---
-    # The key is intentionally optional: the application must start without it.
+    # --- Google Gemini ---
+    # The key is intentionally optional: the application must start (and report
+    # its status) without it, and AI features raise a clear error until it is set.
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.5-flash"
     gemini_embedding_model: str = "gemini-embedding-001"
+    gemini_temperature: float = 0.2
+    gemini_max_output_tokens: int = 1024
+    gemini_timeout_seconds: int = 60
 
     # --- Storage locations ---
     chroma_persist_directory: Path = Path("vector_store/chroma_db")
@@ -50,6 +54,19 @@ class Settings(BaseSettings):
     chunk_size: int = 900
     chunk_overlap: int = 150
 
+    # --- Embeddings and vector retrieval ---
+    embedding_batch_size: int = 24
+    embedding_dimensions: int | None = None
+    chroma_active_collection: str = "factoryassist_active_documents"
+    retrieval_top_k: int = 5
+    retrieval_min_similarity: float = 0.30
+
+    # --- API limits ---
+    max_question_length: int = 1000
+
+    # --- Frontend ---
+    frontend_directory: Path = Path("frontend")
+
     # --- Server ---
     server_host: str = "0.0.0.0"
     server_port: int = 8000
@@ -60,6 +77,7 @@ class Settings(BaseSettings):
         "archived_documents_directory",
         "sample_questions_directory",
         "processed_data_directory",
+        "frontend_directory",
         mode="after",
     )
     @classmethod
