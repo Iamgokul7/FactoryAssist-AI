@@ -1,0 +1,1 @@
+"""FactoryAssist AI backend package."""

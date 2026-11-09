@@ -1,0 +1,61 @@
+# --- Python virtual environment ---
+.venv/
+venv/
+ENV/
+env/
+
+# --- Secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Python caches and build artefacts ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Vector database (generated at runtime) ---
+vector_store/chroma_db/
+vector_store/*.sqlite3
+vector_store/**/*.bin
+
+# --- Uploaded / generated documents (keep the folder structure only) ---
+# Source SOP PDFs are plant documents, not source code: never commit them.
+[Dd]ocuments/*.pdf
+# Case-insensitive on purpose: Windows folds "Documents" and "documents".
+[Dd]ocuments/active/*
+[Dd]ocuments/archived/*
+![Dd]ocuments/active/.gitkeep
+![Dd]ocuments/archived/.gitkeep
+
+# --- Temporary files and logs ---
+*.log
+*.tmp
+*.temp
+*.bak
+~$*
+.venv_install.log
+
+# --- Operating system files ---
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+# --- IDE / editor configuration ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# --- Tooling metadata ---
+.freebuff/
