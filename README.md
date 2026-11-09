@@ -11,20 +11,20 @@ than in general knowledge.
 
 ## Current Development Stage
 
-**Stage 1 - Project Foundation & Environment Setup (complete).**
+**Stage 2 - PDF Processing & Document Preparation (complete).**
 
-Stage 1 delivers the project skeleton only:
+Delivered so far:
 
-- FastAPI application with a root and a health-check endpoint.
-- Centralised, `.env`-driven configuration via Pydantic Settings.
-- Virtual environment and pinned dependencies.
-- Project directory structure prepared for later stages.
-- Git repository initialised.
+- **Stage 1:** FastAPI skeleton with root and health endpoints, centralised
+  `.env` configuration, pinned dependencies, project structure, Git repository.
+- **Stage 2:** revision-aware PDF text extraction, chunking and structured JSON
+  output for the SOP corpus. See
+  [Document Processing Pipeline](#document-processing-pipeline-stage-2).
 
-**Not implemented yet:** the AI chat interface, PDF upload, text extraction,
-embedding generation, ChromaDB retrieval, Gemini calls and the frontend
-application. These arrive in Stages 2-6. The root endpoint reports `stage: 1`
-to make this explicit.
+**Not implemented yet:** embedding generation, ChromaDB ingestion, semantic
+search, Gemini answers, chat and upload endpoints, and the frontend
+application. These arrive in Stages 3-6. The root endpoint still reports
+`stage: 1`, as defined in Stage 1.
 
 Because Gemini integration belongs to a later stage, the application starts
 and serves both endpoints without a Gemini API key configured.
@@ -63,8 +63,13 @@ S:\BiztelAI Technologies. Assesment
 │   ├── core/
 │   │   ├── __init__.py
 │   │   └── config.py           # Centralised Pydantic Settings
-│   ├── services/               # PDF, embedding, retrieval, chat (later stages)
-│   │   └── __init__.py
+│   ├── services/
+│   │   ├── __init__.py
+│   │   ├── document_models.py      # Document, page and chunk dataclasses
+│   │   ├── document_registry.py    # Verified document metadata + revisions
+│   │   ├── document_pipeline.py    # Stage 2 pipeline entry point
+│   │   ├── pdf_processor.py        # PyMuPDF page-by-page extraction
+│   │   └── text_chunker.py         # Page-scoped overlapping chunking
 │   └── utils/                  # Shared helpers (later stages)
 │       └── __init__.py
 │
@@ -78,6 +83,8 @@ S:\BiztelAI Technologies. Assesment
 │   ├── archived/               # Superseded SOP versions
 │   └── sample_questions/       # Example supervisor questions
 │
+├── data/
+│   └── processed/              # Generated Stage 2 JSON (git-ignored)
 ├── vector_store/               # ChromaDB persistence (created at runtime)
 ├── screenshots/                # Evidence for the assignment write-up
 │
@@ -155,6 +162,10 @@ copy .env.example .env
 | `CHROMA_PERSIST_DIRECTORY` | ChromaDB persistence directory |
 | `ACTIVE_DOCUMENTS_DIRECTORY` | Active SOP documents |
 | `ARCHIVED_DOCUMENTS_DIRECTORY` | Archived SOP documents |
+| `SAMPLE_QUESTIONS_DIRECTORY` | Sample questions sheet (kept out of the corpus) |
+| `PROCESSED_DATA_DIRECTORY` | Generated Stage 2 JSON output |
+| `CHUNK_SIZE` | Target chunk size in characters (default 900) |
+| `CHUNK_OVERLAP` | Chunk overlap in characters (default 150) |
 | `SERVER_HOST` | Bind address (`0.0.0.0` exposes the app on the local network) |
 | `SERVER_PORT` | Server port |
 
@@ -192,8 +203,55 @@ first run.
 
 ---
 
+## Document Processing Pipeline (Stage 2)
+
+PDFs are organized by role before processing:
+
+| Folder | Documents | Status used for retrieval |
+| --- | --- | --- |
+| `documents/active/` | QC-SOP-014 Rev 04, SAF-SOP-003 Rev 05, MNT-MAN-CNC-02 Rev 02 | `active` |
+| `documents/archived/` | QC-SOP-014 Rev 03 (superseded) | `archived` |
+| `documents/sample_questions/` | Sample_Questions.pdf | `sample_questions` |
+
+The original PDFs are also kept untouched in the parent `documents/` folder;
+the pipeline only reads the three sub-folders, so no document is processed
+twice.
+
+Run the pipeline once from the project root:
+
+```bat
+python -m backend.services.document_pipeline
+```
+
+It extracts each page with PyMuPDF, verifies the document number, revision and
+effective date against `document_registry.py`, chunks the text and writes:
+
+| File | Contents |
+| --- | --- |
+| `data/processed/active_chunks.json` | Chunks from active revisions only |
+| `data/processed/archived_chunks.json` | Chunks from superseded revisions |
+| `data/processed/document_manifest.json` | Document metadata, active revision map, warnings |
+| `data/processed/sample_questions_extracted.json` | Sample questions sheet, extracted but never chunked |
+
+Processing rules:
+
+- **Revision isolation.** QC-SOP-014 Rev 04 supersedes Rev 03. Rev 03 is
+  processed into the archived set only, and the manifest records
+  `superseded_by_document_id`, so it can be kept out of retrieval later.
+- **Page traceability.** Chunks never cross a page boundary, so every chunk
+  carries its exact page number, document code, revision and status.
+- **No invented content.** Pages without extractable text are recorded as
+  extraction warnings and left empty; no OCR is performed at this stage.
+- **Chunking.** Target 900 characters with 150 characters of overlap on word,
+  line and paragraph boundaries (`CHUNK_SIZE` / `CHUNK_OVERLAP`).
+
+The generated JSON is a local build artifact and is git-ignored.
+
+---
+
 ## Project Status
 
-Stage 1 is complete and verified with a single manual smoke test (server start,
-`GET /` and `GET /health`). Later stages add document ingestion, retrieval,
-grounded Gemini answers and the chat frontend.
+Stages 1 and 2 are complete. Stage 1 was verified with a single manual smoke
+test (server start, `GET /` and `GET /health`); Stage 2 was verified with one
+pipeline run. Later stages add embeddings, retrieval, grounded Gemini answers
+and the chat frontend.

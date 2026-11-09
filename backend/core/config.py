@@ -43,6 +43,12 @@ class Settings(BaseSettings):
     chroma_persist_directory: Path = Path("vector_store/chroma_db")
     active_documents_directory: Path = Path("documents/active")
     archived_documents_directory: Path = Path("documents/archived")
+    sample_questions_directory: Path = Path("documents/sample_questions")
+    processed_data_directory: Path = Path("data/processed")
+
+    # --- Text chunking (characters) ---
+    chunk_size: int = 900
+    chunk_overlap: int = 150
 
     # --- Server ---
     server_host: str = "0.0.0.0"
@@ -52,6 +58,8 @@ class Settings(BaseSettings):
         "chroma_persist_directory",
         "active_documents_directory",
         "archived_documents_directory",
+        "sample_questions_directory",
+        "processed_data_directory",
         mode="after",
     )
     @classmethod

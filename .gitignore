@@ -25,14 +25,19 @@ vector_store/chroma_db/
 vector_store/*.sqlite3
 vector_store/**/*.bin
 
+# --- Generated document-processing output (built locally, never committed) ---
+data/processed/
+
 # --- Uploaded / generated documents (keep the folder structure only) ---
 # Source SOP PDFs are plant documents, not source code: never commit them.
 [Dd]ocuments/*.pdf
 # Case-insensitive on purpose: Windows folds "Documents" and "documents".
 [Dd]ocuments/active/*
 [Dd]ocuments/archived/*
+[Dd]ocuments/sample_questions/*
 ![Dd]ocuments/active/.gitkeep
 ![Dd]ocuments/archived/.gitkeep
+![Dd]ocuments/sample_questions/.gitkeep
 
 # --- Temporary files and logs ---
 *.log
