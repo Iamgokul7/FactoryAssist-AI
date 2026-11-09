@@ -10,9 +10,11 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter
+from starlette.concurrency import run_in_threadpool
 
 from backend.core.config import settings
 from backend.services import knowledge_base
+from backend.services.gemini_client import check_generation_model
 from backend.services.vector_store import VectorStore, VectorStoreError
 
 router = APIRouter(tags=["system"])
@@ -25,8 +27,14 @@ async def health() -> dict[str, Any]:
 
 
 @router.get("/api/status", summary="Application and corpus status")
-async def application_status() -> dict[str, Any]:
-    """Report service availability, models and corpus statistics."""
+async def application_status(refresh: bool = False) -> dict[str, Any]:
+    """Report service availability, models and corpus statistics.
+
+    ``gemini.configured`` only means a key is present. ``gemini.model_status``
+    is the result of a cached availability probe against the Gemini API:
+    ``ready``, ``unavailable``, ``unauthorized``, ``not_configured`` or
+    ``unknown``. Pass ``?refresh=true`` to bypass the cache.
+    """
     summary = knowledge_base.corpus_summary()
     documents = knowledge_base.documents()
 
@@ -34,10 +42,13 @@ async def application_status() -> dict[str, Any]:
     indexed_chunks = 0
     vector_detail: str | None = None
     try:
-        indexed_chunks = VectorStore().count()
+        # ChromaDB is synchronous; keep it off the event loop.
+        indexed_chunks = await run_in_threadpool(VectorStore().count)
     except VectorStoreError as exc:
         chroma_available = False
         vector_detail = str(exc)
+
+    availability = await run_in_threadpool(check_generation_model, force=refresh)
 
     return {
         "application": settings.app_name,
@@ -48,6 +59,7 @@ async def application_status() -> dict[str, Any]:
             "configured": settings.is_gemini_configured,
             "generation_model": settings.gemini_model,
             "embedding_model": settings.gemini_embedding_model,
+            **availability.as_dict(),
         },
         "vector_store": {
             "available": chroma_available,

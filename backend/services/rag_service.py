@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any, Sequence
@@ -26,7 +27,10 @@ from backend.services.gemini_client import (
     GeminiRequestError,
     create_client,
     describe_error,
+    error_code,
     is_retryable,
+    safe_message,
+    status_code,
 )
 from backend.services.knowledge_base import active_revisions
 from backend.services.vector_store import RetrievedChunk, VectorStore, VectorStoreError
@@ -47,6 +51,10 @@ FALLBACK_ANSWER = (
 
 _MAX_ATTEMPTS = 2
 _BACKOFF_SECONDS = 2.0
+
+_THINKING_LEVELS = frozenset({"minimal", "low", "medium", "high"})
+_DISABLED_THINKING_LEVELS = frozenset({"", "off", "none", "disabled", "false"})
+_MODEL_VERSION = re.compile(r"gemini-(\d+)", re.IGNORECASE)
 
 SYSTEM_INSTRUCTION = f"""You are FactoryAssist AI, a document-grounded copilot for \
 manufacturing shop-floor supervisors at Kaveri Precision Components.
@@ -216,11 +224,11 @@ class RagService:
         except GeminiNotConfiguredError:
             return _not_configured()
         except GeminiRequestError as exc:
-            logger.warning("Answer generation failed: %s", type(exc).__name__)
+            # The service layer already logged the status code and API message.
             return RagAnswer(
                 status=STATUS_ERROR,
-                answer="The AI service is temporarily unavailable. Please try again.",
-                detail=str(exc),
+                answer=str(exc),
+                detail=exc.detail,
             )
 
         answer_text = answer_text.strip()
@@ -275,34 +283,56 @@ class RagService:
         self, question: str, chunks: Sequence[RetrievedChunk]
     ) -> tuple[str, bool, list[int]]:
         prompt = _build_prompt(question, chunks)
-        config = types.GenerateContentConfig(
-            system_instruction=SYSTEM_INSTRUCTION,
-            temperature=settings.gemini_temperature,
-            max_output_tokens=settings.gemini_max_output_tokens,
-            response_mime_type="application/json",
-            response_schema=_RESPONSE_SCHEMA,
-            # Answers are short and evidence-bound; thinking tokens would only
-            # add latency and risk truncating the JSON reply.
-            thinking_config=types.ThinkingConfig(thinking_budget=0),
-        )
+        model = settings.gemini_model
+        config = _generation_config(thinking_config(model))
 
         last_error: Exception | None = None
-        for attempt in range(1, _MAX_ATTEMPTS + 1):
+        attempt = 0
+        while attempt < _MAX_ATTEMPTS:
+            attempt += 1
             try:
                 response = self._get_client().models.generate_content(
-                    model=settings.gemini_model, contents=prompt, config=config
+                    model=model, contents=prompt, config=config
                 )
                 return _parse_response(response, source_count=len(chunks))
             except GeminiNotConfiguredError:
                 raise
             except Exception as exc:  # noqa: BLE001 - normalised below
                 last_error = exc
-                if attempt == _MAX_ATTEMPTS or not is_retryable(exc):
-                    break
-                time.sleep(_BACKOFF_SECONDS * attempt)
+                if is_retryable(exc) and attempt < _MAX_ATTEMPTS:
+                    time.sleep(_BACKOFF_SECONDS * attempt)
+                    continue
+                # If this model family rejects the thinking hint, drop it and
+                # try once more rather than failing the whole answer.
+                if (
+                    status_code(exc) == 400
+                    and config.thinking_config is not None
+                    and attempt < _MAX_ATTEMPTS
+                ):
+                    logger.warning(
+                        "Gemini rejected the thinking configuration for %s (%s); "
+                        "retrying without it",
+                        model,
+                        error_code(exc),
+                    )
+                    config = _generation_config(None)
+                    continue
+                break
 
-        message = describe_error(last_error) if last_error else "Generation failed"
-        raise GeminiRequestError(message) from last_error
+        if last_error is None:  # pragma: no cover - defensive
+            raise GeminiRequestError("Generation failed")
+
+        logger.error(
+            "Gemini generation failed for %s: %s | %s",
+            model,
+            error_code(last_error),
+            safe_message(last_error),
+        )
+        raise GeminiRequestError(
+            describe_error(last_error),
+            code=error_code(last_error),
+            diagnostic=safe_message(last_error),
+        ) from last_error
 
 
 def _not_configured() -> RagAnswer:
@@ -314,6 +344,52 @@ def _not_configured() -> RagAnswer:
             "documents are processed and ready to be indexed once the key is set."
         ),
         detail="GEMINI_API_KEY is missing from .env",
+    )
+
+
+def model_major_version(model: str) -> int | None:
+    """Major generation of a Gemini model name, if it states one.
+
+    ``gemini-3.5-flash-lite`` -> 3, ``gemini-2.5-flash`` -> 2, while
+    ``gemini-flash-latest`` (an alias) -> ``None``.
+    """
+    match = _MODEL_VERSION.search(model or "")
+    return int(match.group(1)) if match else None
+
+
+def thinking_config(model: str) -> types.ThinkingConfig | None:
+    """Thinking settings that ``model`` actually supports.
+
+    Gemini 3 replaced ``thinking_budget`` with ``thinking_level`` and rejects a
+    budget (notably ``thinking_budget=0``) with 400 INVALID_ARGUMENT, so the
+    hint is only sent to Gemini 3 and newer. Older and unversioned models get
+    no hint at all and fall back to the API default.
+    """
+    if (model_major_version(model) or 0) < 3:
+        return None
+
+    level = settings.gemini_thinking_level.strip().lower()
+    if level in _DISABLED_THINKING_LEVELS:
+        return None
+    if level not in _THINKING_LEVELS:
+        logger.warning(
+            "Unknown GEMINI_THINKING_LEVEL=%r; using the model default", level
+        )
+        return None
+    return types.ThinkingConfig(thinking_level=level)
+
+
+def _generation_config(
+    thinking: types.ThinkingConfig | None,
+) -> types.GenerateContentConfig:
+    """Build the strict, JSON-only generation configuration."""
+    return types.GenerateContentConfig(
+        system_instruction=SYSTEM_INSTRUCTION,
+        temperature=settings.gemini_temperature,
+        max_output_tokens=settings.gemini_max_output_tokens,
+        response_mime_type="application/json",
+        response_schema=_RESPONSE_SCHEMA,
+        thinking_config=thinking,
     )
 
 

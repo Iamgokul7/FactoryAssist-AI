@@ -157,6 +157,7 @@
             <div class="panel-head"><div><h2>Runtime configuration</h2><p>Read from the server's .env file.</p></div></div>
             <dl class="kv">
               <div><dt>Generation model</dt><dd id="cfg-generation">—</dd></div>
+              <div><dt>Model availability</dt><dd id="cfg-model-status">—</dd></div>
               <div><dt>Embedding model</dt><dd id="cfg-embedding">—</dd></div>
               <div><dt>Collection</dt><dd id="cfg-collection">—</dd></div>
               <div><dt>Retrieval</dt><dd id="cfg-topk">—</dd></div>
@@ -178,7 +179,7 @@
               <tbody>
                 <tr><td><span class="method">GET</span></td><td><code>/</code></td><td>Dashboard in a browser, application info for API clients</td></tr>
                 <tr><td><span class="method">GET</span></td><td><code>/health</code></td><td>Health check</td></tr>
-                <tr><td><span class="method">GET</span></td><td><code>/api/status</code></td><td>Service availability, corpus and retrieval configuration</td></tr>
+                <tr><td><span class="method">GET</span></td><td><code>/api/status</code></td><td>Service and model availability, corpus and retrieval configuration</td></tr>
                 <tr><td><span class="method method-post">POST</span></td><td><code>/api/chat</code></td><td>Grounded answer with document sources</td></tr>
                 <tr><td><span class="method">GET</span></td><td><code>/docs</code></td><td>Interactive OpenAPI documentation</td></tr>
               </tbody>

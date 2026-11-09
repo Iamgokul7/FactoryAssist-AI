@@ -115,9 +115,11 @@ S:\BiztelAI Technologies. Assesment
 │   └── sample_questions/           # Assignment sample questions
 ├── data/processed/                 # Generated JSON (git-ignored)
 ├── vector_store/chroma_db/         # ChromaDB persistence (git-ignored)
+├── screenshots/                    # Captured from the running app
+├── tests/                          # Offline unit tests (no API key)
 ├── requirements.txt
 ├── .env / .env.example
-└── README.md, THINKING.md
+└── README.md, THINKING.md, DEMO_SCRIPT.md
 ```
 
 The original PDFs also remain untouched in `Documents/`; the pipeline reads only
@@ -151,14 +153,58 @@ ingestion stay disabled until one is present.
 
 ```ini
 GEMINI_API_KEY=your-key-here
-GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MODEL=gemini-3.5-flash-lite
 GEMINI_EMBEDDING_MODEL=gemini-embedding-001
+GEMINI_THINKING_LEVEL=low
 ```
 
 3. Restart the server. No source change is needed — the key is read at startup
    and never sent to the browser.
 
 `.env` is git-ignored. Do not commit it.
+
+### Model and generation settings
+
+`GEMINI_MODEL` must be a model enabled for your key. `/api/status` reports the
+model in use; a model your key cannot use returns `404 NOT_FOUND`. To list what
+is available:
+
+```bat
+python -c "from backend.services.gemini_client import create_client; [print(m.name) for m in create_client().models.list()]"
+```
+
+`GEMINI_THINKING_LEVEL` (`minimal`, `low`, `medium`, `high`, or `off`) is sent
+only to Gemini 3 and newer. Gemini 3 replaced the older *thinking budget* with
+`thinking_level`, and rejects a budget — including `thinking_budget=0`, which
+older models accepted — with `400 INVALID_ARGUMENT`. Gemini 2.x models and
+unversioned aliases are sent no thinking hint at all and use the API default.
+If a model family ever rejects the hint, the request is retried once without it
+before the error is reported.
+
+All generation calls use the strict evidence-bound system prompt, temperature
+`GEMINI_TEMPERATURE`, `GEMINI_MAX_OUTPUT_TOKENS` and a JSON response schema.
+
+### Model availability in `/api/status`
+
+`gemini.configured` only says that a key is present. The status payload also
+carries the result of a saved availability probe, so a typo in `GEMINI_MODEL` is
+visible before the first question:
+
+| Field | Meaning |
+| --- | --- |
+| `model_status` | `ready`, `unavailable`, `unauthorized`, `not_configured` or `unknown` |
+| `model_available` | `true` / `false`, or `null` when the check could not run |
+| `model_detail` | short, secret-free explanation when the model is not ready |
+| `model_checked_at` | UTC timestamp of the probe |
+
+The probe lists the models enabled for the key, uses its own 10-second timeout
+and is cached for `GEMINI_MODEL_CHECK_TTL_SECONDS` (default 600), so dashboard
+refreshes do not trigger a Gemini request each time. Add `?refresh=true` to the
+URL to force a fresh check. A failed probe never fails the endpoint: an
+unreachable API reports `unknown`, a rejected key reports `unauthorized`, and a
+model that is not listed (or cannot `generateContent`) reports `unavailable`.
+The dashboard turns this into its "AI service ready" / "AI model unavailable"
+badge, the AI-service KPI and the Model availability row on System Info.
 
 ## Document processing (Stage 2)
 
@@ -215,7 +261,7 @@ is not exposed to the public internet and there is no cloud deployment.
 | --- | --- | --- |
 | `GET` | `/` | Dashboard in a browser; application info JSON for API clients |
 | `GET` | `/health` | Health check — `{"status": "healthy"}` |
-| `GET` | `/api/status` | Service availability, corpus, revisions, retrieval settings |
+| `GET` | `/api/status` | Service and model availability, corpus, revisions, retrieval settings |
 | `POST` | `/api/chat` | Grounded answer with sources |
 | `GET` | `/docs` | Interactive OpenAPI documentation |
 
@@ -248,6 +294,25 @@ is not exposed to the public internet and there is no cloud deployment.
 `status` is one of `answered`, `insufficient_evidence`, `not_configured`,
 `error`, `invalid_question`. Business outcomes return HTTP 200 with an explicit
 status; empty questions return 400 and malformed bodies 422.
+
+### Error reporting
+
+Failures are classified instead of being reported as one generic error, and the
+supervisor-facing `answer` never mentions the API key unless credentials are
+truly at fault:
+
+| Gemini result | Reported to the user | Server log |
+| --- | --- | --- |
+| `400 INVALID_ARGUMENT` | request/model-setting problem, explicitly *not* a key problem | `400 INVALID_ARGUMENT` + API message |
+| `401` / `403` | check `GEMINI_API_KEY` | `401 UNAUTHENTICATED` + API message |
+| `404 NOT_FOUND` | configured model unavailable, check `GEMINI_MODEL` | `404 NOT_FOUND` + API message |
+| `429` | rate limit reached, try shortly | `429 RESOURCE_EXHAUSTED` |
+| `5xx` | service temporarily unavailable | code + API message |
+| timeout | request took too long | exception type |
+
+The `detail` field carries the short `code STATUS` diagnostic (with API keys
+and `key=` parameters redacted); stack traces and key material never leave the
+server.
 
 ## Sample questions
 
@@ -306,6 +371,41 @@ Rev 03 stays in `data/processed/archived_chunks.json` for reference and in the
 Knowledge Base view, but it is never embedded into the active collection, never
 retrieved, and never cited.
 
+## Tests
+
+Nineteen offline unit tests cover the generation configuration (Gemini 3 vs
+older models), the 400 retry without a thinking hint, error classification and
+response parsing, and the model-availability probe (ready, unavailable,
+unauthorized, unknown, caching, no key in the payload). They never call the
+Gemini API and need no key:
+
+```bat
+python -m unittest discover -s tests -t . -v
+python -m compileall backend tests
+```
+
+Live checks against a configured key are a separate manual run — see
+`Project status` below.
+
+## Screenshots and demo
+
+`screenshots/` holds images captured from the running application (1280 × 900,
+headless Chrome against `http://127.0.0.1:8000`), not mock-ups:
+
+| File | Shows |
+| --- | --- |
+| `01-dashboard.png` | Dashboard: KPIs, badges, active documents |
+| `02-assistant-coolant.png` | Coolant answer with citation |
+| `03-assistant-al104.png` | Alarm AL-104 meaning and action |
+| `04-assistant-loto.png` | LOTO lock removal |
+| `05-source-citations.png` | Citation detail — QC-SOP-014 Rev 04, page 2 |
+| `06-knowledge-base.png` | Active documents and the archived Rev 03 |
+| `07-system-info.png` | Model and availability, corpus, API surface |
+| `08-abstention-electricity.png` | Refusal with no sources |
+
+`DEMO_SCRIPT.md` contains the 2–3 minute demo narration with timings, the order
+of questions to ask, and a recording checklist.
+
 ## Security notes
 
 - `GEMINI_API_KEY` lives only in `.env` (git-ignored) and on the server; the
@@ -313,6 +413,9 @@ retrieved, and never cited.
 - No credentials, stack traces or key material are returned by the API.
 - `.venv/`, `data/processed/`, `vector_store/chroma_db/`, caches and logs are
   git-ignored.
+- `DEBUG` is off by default (`.env.example` ships `DEBUG=False`), so an
+  unexpected error cannot return a traceback or frame locals to the browser.
+  Set `DEBUG=True` only while developing locally.
 - The app has **no authentication** and binds to the local network. Do not port
   forward it or expose it to the internet.
 - Answers should support, not replace, the controlled SOP and the responsible
@@ -336,7 +439,20 @@ retrieved, and never cited.
 Stages 1–6 are implemented: foundation, PDF processing, embeddings/ChromaDB,
 RAG, FastAPI + dashboard, and documentation.
 
-**Live AI validation is pending** — no `GEMINI_API_KEY` was configured during
-the build, so ingestion, retrieval quality and answer generation have not been
-executed against the Gemini API. Document extraction, chunking, the API, the
-error paths and the dashboard were verified.
+Ingestion and live generation were verified against the Gemini API with
+`gemini-embedding-001` and `gemini-3.5-flash-lite`: 15 active chunks indexed, and
+the six questions below answered from the correct document, revision and page.
+The unanswerable question returns the fallback sentence with no sources.
+
+**Verified questions** (live API, sources as returned):
+
+| Question | Result |
+| --- | --- |
+| TX-200 coolant concentration | 6 – 8 %, MNT-MAN-CNC-02 Rev 02 p1 |
+| Alarm AL-104 meaning and action | way lube low; ISO VG 68 to MAX then RESET, Rev 02 p2 |
+| Personal lock removal (LOTO) | each person removes only their own lock, SAF-SOP-003 Rev 05 p1 |
+| BH-220 OD tolerance | ±0.050 mm (90.000 mm nominal), QC-SOP-014 Rev 04 p2 |
+| Spindle runout inspection | monthly by a maintenance technician, MNT Rev 02 p1 |
+| Annual electricity consumption | `insufficient_evidence`, fallback, no sources |
+
+QC-SOP-014 Rev 03 never appeared in any answer or source list.

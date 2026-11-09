@@ -33,6 +33,29 @@
 
   const state = { status: null, busy: false };
 
+  // `/api/status` reports whether the configured Gemini model is actually
+  // usable, not just whether a key exists. The server caches the probe.
+  const MODEL_BADGES = {
+    ready: { badge: "AI service ready", variant: "ok" },
+    not_configured: { badge: "AI key missing", variant: "warn" },
+    unavailable: { badge: "AI model unavailable", variant: "danger" },
+    unauthorized: { badge: "AI key rejected", variant: "danger" },
+    unknown: { badge: "AI status unverified", variant: "warn" },
+  };
+
+  const MODEL_KPI = {
+    ready: "Ready",
+    not_configured: "Not configured",
+    unavailable: "Unavailable",
+    unauthorized: "Key rejected",
+    unknown: "Unverified",
+  };
+
+  function modelState(gemini) {
+    if (!gemini || !gemini.configured) return "not_configured";
+    return MODEL_BADGES[gemini.model_status] ? gemini.model_status : "unknown";
+  }
+
   const $ = (id) => document.getElementById(id);
   const chatLog = $("chat-log");
   const emptyState = $("chat-empty");
@@ -97,7 +120,11 @@
     $("sidebar-version").textContent = `v${status.version || "1.0.0"} · stage 6`;
 
     // top badges
-    setBadge("badge-ai", gemini.configured ? "AI service ready" : "AI key missing", gemini.configured ? "ok" : "warn");
+    const model = modelState(gemini);
+    const modelBroken = model === "unavailable" || model === "unauthorized";
+    const modelBadge = MODEL_BADGES[model];
+    setBadge("badge-ai", modelBadge.badge, modelBadge.variant);
+    $("badge-ai").title = gemini.model_detail || "";
     if (!store.available) {
       setBadge("badge-index", "Index unavailable", "danger");
     } else if (status.index_ready) {
@@ -107,7 +134,8 @@
     }
 
     // sidebar status
-    const ready = gemini.configured && store.available && status.index_ready;
+    const ready =
+      gemini.configured && store.available && status.index_ready && !modelBroken;
     const chip = $("sidebar-status");
     chip.innerHTML = `<span class="dot ${ready ? "dot-ok" : "dot-warn"}"></span><span>${
       ready ? "System ready" : "Setup required"
@@ -123,16 +151,24 @@
         : "Run the ingestion command to index"
       : "Vector store unavailable";
     $("kpi-revisions").textContent = Object.keys(corpus.active_revisions || {}).length;
-    $("kpi-ai").textContent = gemini.configured ? "Configured" : "Not configured";
-    $("kpi-ai-hint").textContent = gemini.configured
+    $("kpi-ai").textContent = MODEL_KPI[model];
+    $("kpi-ai-hint").textContent = modelBroken
+      ? gemini.model_detail || "Check the Gemini configuration"
+      : model === "ready"
       ? gemini.generation_model || "Gemini"
-      : "Add GEMINI_API_KEY to .env";
+      : model === "not_configured"
+      ? "Add GEMINI_API_KEY to .env"
+      : gemini.generation_model || "Gemini";
 
     // chat context
     const dot = $("chat-dot");
-    dot.className = `live-dot ${status.index_ready && gemini.configured ? "is-ready" : "is-warn"}`;
+    dot.className = `live-dot ${
+      status.index_ready && gemini.configured && !modelBroken ? "is-ready" : "is-warn"
+    }`;
     $("chat-context").textContent = !gemini.configured
       ? "AI key not configured — chat is disabled until a key is added"
+      : modelBroken
+      ? gemini.model_detail || "The configured AI model is unavailable"
       : !store.available
       ? "Document index unavailable"
       : !status.index_ready
@@ -225,6 +261,13 @@
 
   function renderConfiguration(status, gemini, store, corpus) {
     $("cfg-generation").textContent = gemini.generation_model || "—";
+    const model = modelState(gemini);
+    const availability = $("cfg-model-status");
+    availability.textContent =
+      model === "ready"
+        ? "Available"
+        : MODEL_KPI[model] || "Not verified";
+    availability.title = gemini.model_detail || "";
     $("cfg-embedding").textContent = gemini.embedding_model || "—";
     $("cfg-collection").textContent = store.collection || "—";
     const retrieval = status.retrieval || {};

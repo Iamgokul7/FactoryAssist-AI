@@ -31,7 +31,9 @@ class Settings(BaseSettings):
     # --- Application ---
     app_name: str = "FactoryAssist AI"
     app_version: str = "1.0.0"
-    debug: bool = True
+    # Off by default so an unexpected error cannot return a traceback (and any
+    # frame locals) to the browser. Set DEBUG=True only while developing.
+    debug: bool = False
 
     # --- Google Gemini ---
     # The key is intentionally optional: the application must start (and report
@@ -42,6 +44,13 @@ class Settings(BaseSettings):
     gemini_temperature: float = 0.2
     gemini_max_output_tokens: int = 1024
     gemini_timeout_seconds: int = 60
+    # Reasoning effort for Gemini 3+ models (minimal/low/medium/high). Older
+    # models do not accept this field, so it is only sent to Gemini 3 and newer;
+    # set it to "off" to omit the thinking configuration entirely.
+    gemini_thinking_level: str = "low"
+    # How long the status endpoint reuses a model-availability probe before
+    # asking the Gemini API again (seconds). Keeps dashboard refreshes cheap.
+    gemini_model_check_ttl_seconds: int = 600
 
     # --- Storage locations ---
     chroma_persist_directory: Path = Path("vector_store/chroma_db")
