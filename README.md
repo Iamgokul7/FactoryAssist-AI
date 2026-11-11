@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/factoryassist-banner.png" alt="FactoryAssist AI - Manufacturing SOP Copilot" width="100%">
+</p>
+
 # FactoryAssist AI — Manufacturing SOP Copilot
 
 An AI copilot for manufacturing shop-floor supervisors. Supervisors ask a
