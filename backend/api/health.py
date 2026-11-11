@@ -42,8 +42,12 @@ async def application_status(refresh: bool = False) -> dict[str, Any]:
     indexed_chunks = 0
     vector_detail: str | None = None
     try:
-        # ChromaDB is synchronous; keep it off the event loop.
-        indexed_chunks = await run_in_threadpool(VectorStore().count)
+        # ChromaDB is synchronous; keep it off the event loop. Only active
+        # chunks count here: pending, accepted-but-unapproved or archived
+        # uploads must never look searchable.
+        indexed_chunks = await run_in_threadpool(
+            VectorStore().count, {"document_status": "active"}
+        )
     except VectorStoreError as exc:
         chroma_available = False
         vector_detail = str(exc)
@@ -53,7 +57,7 @@ async def application_status(refresh: bool = False) -> dict[str, Any]:
     return {
         "application": settings.app_name,
         "version": settings.app_version,
-        "stage": 6,
+        "stage": 7,
         "status": "running",
         "gemini": {
             "configured": settings.is_gemini_configured,

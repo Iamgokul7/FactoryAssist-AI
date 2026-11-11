@@ -8,6 +8,8 @@
 # --- Web backend ---
 fastapi==0.162.2
 uvicorn[standard]==0.54.0
+# Multipart parsing for PDF uploads (document management).
+python-multipart==0.0.33
 
 # --- Google Gemini (answer generation + embeddings + query embeddings) ---
 google-genai==2.34.0

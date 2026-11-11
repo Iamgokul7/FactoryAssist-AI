@@ -7,6 +7,7 @@
   <meta name="description" content="AI copilot for manufacturing SOPs, maintenance manuals and quality procedures." />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f2740'/%3E%3Cpath d='M8 22V12l4 3v-3l4 3v-3l4 3v7z' fill='%2360a5fa'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="/static/css/styles.css" />
+  <link rel="stylesheet" href="/static/css/management.css" />
 </head>
 <body>
 <svg class="sprite" aria-hidden="true" focusable="false">
@@ -19,6 +20,14 @@
   <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></symbol>
   <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></symbol>
   <symbol id="i-doc" viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h6M10 16h6"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7h6l2 2h10v10H3z"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 16v3h16v-3"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.5 3-5.5 7-5.5s7 2 7 5.5"/></symbol>
+  <symbol id="i-logout" viewBox="0 0 24 24"><path d="M14 5H6v14h8M17 8l3 4-3 4M10 12h10"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12l4 4L19 6"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
 </svg>
 
 <div class="app-shell">
@@ -35,6 +44,7 @@
       <button class="nav-item is-active" type="button" data-view="dashboard"><svg><use href="#i-dashboard"/></svg><span>Dashboard</span></button>
       <button class="nav-item" type="button" data-view="assistant"><svg><use href="#i-chat"/></svg><span>AI Assistant</span></button>
       <button class="nav-item" type="button" data-view="knowledge"><svg><use href="#i-book"/></svg><span>Knowledge Base</span></button>
+      <button class="nav-item" type="button" data-view="documents" id="nav-documents" hidden><svg><use href="#i-folder"/></svg><span>Document Management</span></button>
       <button class="nav-item" type="button" data-view="about"><svg><use href="#i-info"/></svg><span>System Info</span></button>
     </nav>
 
@@ -56,6 +66,11 @@
       <div class="topbar-badges">
         <span class="badge badge-muted" id="badge-ai">AI service —</span>
         <span class="badge badge-muted" id="badge-index">Index —</span>
+      </div>
+      <div class="auth-area" id="auth-area">
+        <span class="auth-user" id="auth-user" hidden></span>
+        <button class="btn btn-ghost btn-sm" id="login-btn" type="button"><svg><use href="#i-user"/></svg><span>Sign in</span></button>
+        <button class="btn btn-ghost btn-sm" id="logout-btn" type="button" hidden><svg><use href="#i-logout"/></svg><span>Sign out</span></button>
       </div>
     </header>
 
@@ -141,6 +156,87 @@
         </div>
       </section>
 
+      <section class="view" id="view-documents" hidden>
+        <div class="kpi-grid kpi-grid-5">
+          <article class="kpi"><p class="kpi-label">Total documents</p><p class="kpi-value" id="doc-kpi-total">—</p><p class="kpi-hint">Uploaded revisions</p></article>
+          <article class="kpi"><p class="kpi-label">Active</p><p class="kpi-value" id="doc-kpi-active">—</p><p class="kpi-hint">Searchable by the assistant</p></article>
+          <article class="kpi"><p class="kpi-label">Pending review</p><p class="kpi-value" id="doc-kpi-pending">—</p><p class="kpi-hint">Awaiting a manager</p></article>
+          <article class="kpi"><p class="kpi-label">Archived</p><p class="kpi-value" id="doc-kpi-archived">—</p><p class="kpi-hint">Superseded revisions</p></article>
+          <article class="kpi"><p class="kpi-label">Failed uploads</p><p class="kpi-value" id="doc-kpi-failed">—</p><p class="kpi-hint">Processing did not finish</p></article>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div><h2>Upload a controlled document</h2><p>Uploads are validated and indexed, then held as pending review. They are not searchable until a manager activates them.</p></div>
+            <button class="btn btn-ghost" type="button" id="toggle-upload">Show form</button>
+          </div>
+          <form class="upload-form" id="upload-form" hidden novalidate>
+            <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-describedby="dropzone-hint">
+              <span class="dropzone-icon"><svg><use href="#i-upload"/></svg></span>
+              <strong id="dropzone-title">Drop a PDF here, or click to browse</strong>
+              <small id="dropzone-hint">PDF only · validated before storage · max 25 MB</small>
+              <input type="file" id="file-input" accept="application/pdf,.pdf" hidden />
+            </div>
+
+            <div class="form-grid">
+              <label class="field"><span>Document ID *</span><input id="f-code" name="document_code" placeholder="QC-SOP-014" autocomplete="off" maxlength="60" /></label>
+              <label class="field"><span>Revision *</span><input id="f-revision" name="revision" placeholder="05" inputmode="numeric" autocomplete="off" maxlength="3" /></label>
+              <label class="field field-wide"><span>Document title *</span><input id="f-title" name="document_title" placeholder="Incoming Material Inspection - Standard Operating Procedure" autocomplete="off" maxlength="200" /></label>
+              <label class="field"><span>Department *</span><input id="f-department" name="department" list="department-options" placeholder="Quality" autocomplete="off" maxlength="80" /></label>
+              <label class="field"><span>Category *</span><select id="f-category" name="category"><option value="">Select a category</option></select></label>
+              <label class="field"><span>Effective date *</span><input id="f-effective" name="effective_date" type="date" /></label>
+              <label class="field field-wide"><span>Description</span><textarea id="f-description" name="description" rows="2" maxlength="1000" placeholder="What this procedure covers and who uses it"></textarea></label>
+            </div>
+            <datalist id="department-options"></datalist>
+
+            <div class="upload-actions">
+              <p class="form-hint">The file is checked for a real PDF signature, stored under a generated name, and embedded with the configured Gemini model.</p>
+              <button class="btn btn-primary" type="submit" id="upload-submit"><svg><use href="#i-upload"/></svg><span>Upload and process</span></button>
+            </div>
+            <div class="progress" id="upload-progress" hidden><div class="progress-bar" id="upload-progress-bar"></div></div>
+            <p class="form-error" id="upload-error" hidden></p>
+          </form>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div><h2>Document register</h2><p>Every revision on record, with its governance status.</p></div>
+            <button class="btn btn-ghost" type="button" id="refresh-documents"><svg><use href="#i-refresh"/></svg>Refresh</button>
+          </div>
+          <div class="filter-bar">
+            <label class="search-field"><svg><use href="#i-search"/></svg><input id="doc-search" type="search" placeholder="Search code, title or department" autocomplete="off" /></label>
+            <div class="filter-chips" id="doc-filters" role="group" aria-label="Filter by status">
+              <button class="chip is-selected" type="button" data-status="">All</button>
+              <button class="chip" type="button" data-status="active">Active</button>
+              <button class="chip" type="button" data-status="pending_review">Pending review</button>
+              <button class="chip" type="button" data-status="archived">Archived</button>
+              <button class="chip" type="button" data-status="failed">Failed</button>
+              <button class="chip" type="button" data-status="rejected">Rejected</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Document ID</th><th>Title</th><th>Rev</th><th>Department</th><th>Effective</th><th>Status</th><th>Uploaded</th><th>By</th><th>Actions</th></tr></thead>
+              <tbody id="doc-table"><tr><td colspan="9" class="table-empty">Loading documents…</td></tr></tbody>
+            </table>
+          </div>
+          <p class="panel-note">Pending, rejected, failed and archived revisions are never returned by the assistant. Activation is the only step that makes a revision searchable.</p>
+        </div>
+
+        <div class="panel" id="audit-panel" hidden>
+          <div class="panel-head">
+            <div><h2>Audit trail</h2><p>Sign-ins and governance actions, newest first. Administrators only.</p></div>
+            <button class="btn btn-ghost" type="button" id="refresh-audit"><svg><use href="#i-refresh"/></svg>Refresh</button>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Document</th><th>Result</th><th>Detail</th></tr></thead>
+              <tbody id="audit-table"><tr><td colspan="6" class="table-empty">Loading audit records…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
       <section class="view" id="view-about" hidden>
         <div class="grid-two">
           <div class="panel">
@@ -181,6 +277,16 @@
                 <tr><td><span class="method">GET</span></td><td><code>/health</code></td><td>Health check</td></tr>
                 <tr><td><span class="method">GET</span></td><td><code>/api/status</code></td><td>Service and model availability, corpus and retrieval configuration</td></tr>
                 <tr><td><span class="method method-post">POST</span></td><td><code>/api/chat</code></td><td>Grounded answer with document sources</td></tr>
+                <tr><td><span class="method method-post">POST</span></td><td><code>/api/auth/login</code></td><td>Start a management session (rate limited, audited)</td></tr>
+                <tr><td><span class="method method-post">POST</span></td><td><code>/api/auth/logout</code></td><td>End the current session</td></tr>
+                <tr><td><span class="method">GET</span></td><td><code>/api/auth/me</code></td><td>Current user, role and CSRF token</td></tr>
+                <tr><td><span class="method">GET</span></td><td><code>/api/documents</code></td><td>Searchable document register (manager)</td></tr>
+                <tr><td><span class="method method-post">POST</span></td><td><code>/api/documents/upload</code></td><td>Validate, process and queue a PDF for review</td></tr>
+                <tr><td><span class="method">GET</span></td><td><code>/api/documents/stats</code></td><td>Dashboard counters</td></tr>
+                <tr><td><span class="method method-post">POST</span></td><td><code>/api/documents/{key}/activate</code></td><td>Activate a revision and archive the one it replaces</td></tr>
+                <tr><td><span class="method method-post">POST</span></td><td><code>/api/documents/{key}/archive</code></td><td>Retire an active revision</td></tr>
+                <tr><td><span class="method method-post">POST</span></td><td><code>/api/documents/{key}/reject</code></td><td>Reject a pending revision</td></tr>
+                <tr><td><span class="method">GET</span></td><td><code>/api/audit</code></td><td>Recent audit records (administrator)</td></tr>
                 <tr><td><span class="method">GET</span></td><td><code>/docs</code></td><td>Interactive OpenAPI documentation</td></tr>
               </tbody>
             </table>
@@ -194,7 +300,10 @@
             <li>Scanned pages without a text layer are reported as extraction warnings, not read with OCR.</li>
             <li>Tables are extracted as plain text, so very wide tables may read awkwardly.</li>
             <li>The assistant refuses when evidence is weak; it is not a substitute for the controlled SOP or the responsible supervisor.</li>
-            <li>Runs locally on the plant network; no authentication is implemented in this build.</li>
+            <li>Document management requires a signed-in ADMIN or SOP_MANAGER; employees can use the assistant but cannot change documents.</li>
+            <li>The assistant is open on the plant network by design; every management API requires a session and enforces role checks server-side.</li>
+            <li>Sessions and audit records live in a local SQLite database. Run the service behind your plant's TLS-terminated reverse proxy for HTTPS cookies.</li>
+            <li>Scanned PDFs without a text layer are rejected at upload; OCR is not part of this build.</li>
           </ul>
         </div>
       </section>
@@ -203,6 +312,36 @@
     <footer class="app-foot">FactoryAssist AI · Local deployment · Answers are only as reliable as the controlled documents behind them.</footer>
   </div>
 </div>
+<div class="modal" id="login-modal" hidden>
+  <div class="modal-backdrop" data-close="login"></div>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="login-title">
+    <div class="modal-head">
+      <div><h2 id="login-title">Sign in</h2><p>Document management is restricted to authorised managers.</p></div>
+      <button class="icon-btn" type="button" data-close="login" aria-label="Close sign-in"><svg><use href="#i-close"/></svg></button>
+    </div>
+    <form class="modal-body" id="login-form" novalidate>
+      <label class="field"><span>Username</span><input id="login-username" autocomplete="username" maxlength="64" /></label>
+      <label class="field"><span>Password</span><input id="login-password" type="password" autocomplete="current-password" maxlength="256" /></label>
+      <p class="form-error" id="login-error" hidden></p>
+      <p class="form-hint" id="login-hint">Accounts are created by an administrator. Default roles: ADMIN, SOP_MANAGER, EMPLOYEE.</p>
+      <button class="btn btn-primary btn-block" type="submit" id="login-submit"><svg><use href="#i-lock"/></svg><span>Sign in</span></button>
+    </form>
+  </div>
+</div>
+
+<div class="modal" id="detail-modal" hidden>
+  <div class="modal-backdrop" data-close="detail"></div>
+  <div class="modal-card modal-wide" role="dialog" aria-modal="true" aria-labelledby="detail-title">
+    <div class="modal-head">
+      <div><h2 id="detail-title">Document details</h2><p id="detail-subtitle"></p></div>
+      <button class="icon-btn" type="button" data-close="detail" aria-label="Close details"><svg><use href="#i-close"/></svg></button>
+    </div>
+    <div class="modal-body" id="detail-body"></div>
+  </div>
+</div>
+
+<div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="false"></div>
+
 <script src="/static/js/app.js" defer></script>
 </body>
 </html>

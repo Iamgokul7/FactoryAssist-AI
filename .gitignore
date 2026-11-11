@@ -28,7 +28,11 @@ vector_store/**/*.bin
 # --- Generated document-processing output (built locally, never committed) ---
 data/processed/
 
+# --- Document management state (accounts, sessions, audit, upload records) ---
+data/managed/
+
 # --- Uploaded / generated documents (keep the folder structure only) ---
+[Dd]ocuments/uploads/
 # Source SOP PDFs are plant documents, not source code: never commit them.
 [Dd]ocuments/*.pdf
 # Case-insensitive on purpose: Windows folds "Documents" and "documents".
@@ -64,3 +68,7 @@ $RECYCLE.BIN/
 
 # --- Tooling metadata ---
 .freebuff/
+PERSONAL_REFLECTIONS_TO_CONFIRM.md
+
+# Local validation screenshots (keep out of public repository)
+screenshots/validation-*.png

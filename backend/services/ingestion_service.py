@@ -188,7 +188,15 @@ def ingest_active_chunks() -> IngestionReport:
         report.chunks_embedded = len(records)
 
     current_ids = {str(chunk["chunk_id"]) for chunk in valid_chunks}
-    stale_ids = [chunk_id for chunk_id in existing if chunk_id not in current_ids]
+    # Chunks uploaded through the management interface are governed by the
+    # activation/archival workflow, so this baseline cleanup must not delete
+    # them just because they are not in active_chunks.json.
+    managed_ids = store.managed_chunk_ids()
+    stale_ids = [
+        chunk_id
+        for chunk_id in existing
+        if chunk_id not in current_ids and chunk_id not in managed_ids
+    ]
     if stale_ids:
         store.delete(stale_ids)
         report.stale_records_removed = len(stale_ids)

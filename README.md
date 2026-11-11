@@ -39,6 +39,12 @@ knowledge and cannot show where an instruction came from.
   insufficient, with no invented values, procedures or citations.
 - **Live operational dashboard** — corpus, index and configuration status,
   knowledge-base view, and a chat interface with source cards.
+- **Document management** — managers upload SOP PDFs, review the processed
+  result, activate a revision (which archives the one it replaces) or reject it.
+  Only active, approved revisions are searchable.
+- **Role-based access control** — `ADMIN`, `SOP_MANAGER` and `EMPLOYEE` roles,
+  hashed passwords, HttpOnly session cookies, CSRF protection, login rate
+  limiting and an audit trail of governance actions.
 - **Mobile-friendly** — usable from a phone on the same Wi-Fi network.
 
 ---
@@ -53,6 +59,7 @@ knowledge and cannot show where an instruction came from.
 | Embeddings | Gemini Embedding API (`gemini-embedding-001`) |
 | Vector database | ChromaDB 1.5.9 (local, persistent) |
 | PDF processing | PyMuPDF 2.1 |
+| Accounts, sessions, audit | SQLite (standard library) + PBKDF2-HMAC-SHA256 |
 | Frontend | HTML5, CSS3, vanilla JavaScript (no framework) |
 
 No React, Node.js, Next.js, Flask, LangChain or LlamaIndex is used.
@@ -91,9 +98,14 @@ S:\BiztelAI Technologies. Assesment
 ├── backend/
 │   ├── main.py                     # FastAPI app, dashboard + API
 │   ├── api/
+│   │   ├── auth.py                 # Login, sessions, accounts, audit
 │   │   ├── chat.py                 # POST /api/chat
+│   │   ├── deps.py                 # Session, role and CSRF dependencies
+│   │   ├── documents.py            # Upload, review, activate, archive
 │   │   └── health.py               # GET /health, GET /api/status
-│   ├── core/config.py              # Centralised Pydantic Settings
+│   ├── core/
+│   │   ├── config.py               # Centralised Pydantic Settings
+│   │   └── security.py             # Password hashing, tokens, policy
 │   └── services/
 │       ├── document_pipeline.py    # Stage 2: extract + chunk + write JSON
 │       ├── document_registry.py    # Verified document metadata/revisions
@@ -102,18 +114,24 @@ S:\BiztelAI Technologies. Assesment
 │       ├── embedding_service.py    # Gemini embeddings (batched, retried)
 │       ├── vector_store.py         # ChromaDB collection wrapper
 │       ├── ingestion_service.py    # Embed + index active chunks
-│       ├── knowledge_base.py       # Reads the document manifest
+│       ├── knowledge_base.py       # Manifest + managed document metadata
+│       ├── auth_store.py           # Users, sessions, audit log (SQLite)
+│       ├── management_store.py     # Uploaded revisions and their status
+│       ├── document_manager.py     # Validation, processing, activation
 │       ├── rag_service.py          # Retrieval, grounding, citations
 │       └── gemini_client.py        # Shared client, error descriptions
 ├── frontend/
 │   ├── index.html                  # Dashboard shell
-│   ├── css/styles.css
-│   └── js/app.js
+│   ├── css/styles.css              # Core design system
+│   ├── css/management.css          # Document management styles
+│   └── js/app.js                   # Views, chat, management, auth
 ├── Documents/
 │   ├── active/                     # 3 current SOPs/manuals
 │   ├── archived/                   # QC-SOP-014 Rev 03
 │   └── sample_questions/           # Assignment sample questions
 ├── data/processed/                 # Generated JSON (git-ignored)
+├── data/managed/                   # Accounts, audit, upload records (git-ignored)
+├── Documents/uploads/              # Uploaded PDFs (git-ignored)
 ├── vector_store/chroma_db/         # ChromaDB persistence (git-ignored)
 ├── screenshots/                    # Captured from the running app
 ├── tests/                          # Offline unit tests (no API key)
@@ -228,6 +246,37 @@ Embeds the active chunks and writes them to the ChromaDB collection
 skipped, changed chunks are updated, and removed chunks are deleted — no
 duplicates. Requires `GEMINI_API_KEY`.
 
+## Create the first administrator
+
+Document management is closed until an account exists. There are two supported
+ways to create the first one; both keep the password out of the repository.
+
+**Option A — environment variables (created once, at startup):**
+
+```bat
+notepad .env
+```
+
+```ini
+INITIAL_ADMIN_USERNAME=plantadmin
+INITIAL_ADMIN_PASSWORD=<choose a strong password, 12+ characters>
+INITIAL_ADMIN_FULL_NAME=Plant Administrator
+```
+
+Restart the application. If the account database is empty, the administrator is
+created and the log records `admin_bootstrap`. The variables are ignored once
+any account exists, so they can be removed afterwards.
+
+**Option B — command line (prompts without echoing):**
+
+```bat
+.venv\Scripts\python.exe -m backend.services.auth_store create-admin --username plantadmin
+.venv\Scripts\python.exe -m backend.services.auth_store list-users
+```
+
+Further accounts are created by an administrator from the Document Management
+screen or with `POST /api/users`. Full instructions: `ADMIN_SETUP_GUIDE.md`.
+
 ## Run the application
 
 ```bat
@@ -263,6 +312,24 @@ is not exposed to the public internet and there is no cloud deployment.
 | `GET` | `/health` | Health check — `{"status": "healthy"}` |
 | `GET` | `/api/status` | Service and model availability, corpus, revisions, retrieval settings |
 | `POST` | `/api/chat` | Grounded answer with sources |
+| `POST` | `/api/auth/login` | Sign in (rate limited, audited) |
+| `POST` | `/api/auth/logout` | End the current session |
+| `GET` | `/api/auth/me` | Current user, role and CSRF token |
+| `POST` | `/api/auth/change-password` | Change your own password |
+| `GET` | `/api/documents` | Searchable register (`?status=`, `?q=`) — manager |
+| `GET` | `/api/documents/stats` | Counters for the management dashboard |
+| `GET` | `/api/documents/meta` | Categories, departments, limits |
+| `POST` | `/api/documents/upload` | Upload and process a PDF (multipart) |
+| `GET` | `/api/documents/{key}` | Document metadata and revision history |
+| `GET` | `/api/documents/{key}/status` | Processing status |
+| `GET` | `/api/documents/{key}/file` | Download the stored PDF |
+| `POST` | `/api/documents/{key}/activate` | Activate a revision, archive its predecessor |
+| `POST` | `/api/documents/{key}/archive` | Retire an active revision |
+| `POST` | `/api/documents/{key}/reject` | Reject a pending revision |
+| `POST` | `/api/documents/{key}/retry` | Reprocess a failed upload |
+| `PATCH` | `/api/documents/{key}` | Edit metadata — administrator |
+| `GET` | `/api/users` · `POST` · `PATCH` | Account management — administrator |
+| `GET` | `/api/audit` | Audit trail — administrator |
 | `GET` | `/docs` | Interactive OpenAPI documentation |
 
 ### `POST /api/chat`
@@ -313,6 +380,76 @@ truly at fault:
 The `detail` field carries the short `code STATUS` diagnostic (with API keys
 and `key=` parameters redacted); stack traces and key material never leave the
 server.
+
+## Document management
+
+Open **Document Management** in the sidebar after signing in. The view has the
+upload form, a searchable register with status filters, a detail panel with
+revision history, and (for administrators) the audit trail.
+
+### Roles
+
+| Role | Can do | Cannot do |
+| --- | --- | --- |
+| `ADMIN` | Everything a manager can, plus account management, audit log and metadata edits | — |
+| `SOP_MANAGER` | Upload, review, activate, reject and archive SOP revisions | Manage accounts, read the audit log, edit metadata |
+| `EMPLOYEE` | Use the assistant over active documents | Any management action (HTTP 403) |
+
+Every check is enforced in the API. Hiding a button is not the control: the
+management routes reject anonymous callers with **401** and insufficient roles
+with **403**, and mutating routes also require the session's CSRF token.
+
+### Upload and review workflow
+
+1. A manager drops a PDF and fills in document ID, title, revision, department,
+   category, effective date and description.
+2. The upload is validated (PDF signature, extension, MIME type, size limit,
+   readability, page count, extractable text, duplicate code/revision).
+3. The file is stored under a generated name; text is extracted with the same
+   PyMuPDF code as the baseline pipeline and chunked by the same chunker.
+4. Chunks are embedded once and stored in ChromaDB with
+   `document_status = pending_review`.
+5. The revision appears as **Pending review**. It is not searchable.
+6. A manager **activates** it, **rejects** it, or leaves it pending. A failed
+   upload can be **retried** without paying for the same embeddings twice.
+
+### Statuses
+
+| Status | Meaning | Retrieved by the assistant? |
+| --- | --- | --- |
+| `processing` | Extraction/embedding in progress | No |
+| `pending_review` | Processed, awaiting a manager | No |
+| `active` | Approved and current | **Yes** |
+| `archived` | Superseded or retired | No |
+| `rejected` | Refused by a manager | No |
+| `failed` | Processing failed | No |
+
+### Revision activation guarantees
+
+- Only one revision of a document code can be `active`.
+- Activation flips the new revision's chunks to active in the vector store, then
+  commits both record changes (new active, old archived) in a **single atomic
+  write**. If that write fails, the chunk status is rolled back and the previous
+  revision stays active.
+- The superseded revision's chunks are then removed. Even if that cleanup fails,
+  the status filter already excludes them.
+- The previous revision is never archived before the replacement is processed.
+
+### Validation rules worth knowing
+
+- A real PDF signature is required; the filename and MIME type alone are not
+  trusted.
+- Scanned or image-only PDFs are rejected with a clear message (no OCR in this
+  build).
+- Documents are classified by keyword density as a **review aid**; an unrelated
+  document is flagged in the table and detail panel but still needs a human
+  decision.
+- Archived, pending, rejected and failed revisions are never returned by
+  retrieval, regardless of what the browser sends.
+
+Full operator instructions: `DOCUMENT_MANAGEMENT_GUIDE.md`. Account and role
+setup: `ADMIN_SETUP_GUIDE.md`. What was built, changed and tested:
+`DOCUMENT_MANAGEMENT_IMPLEMENTATION_REPORT.md`.
 
 ## Sample questions
 
@@ -373,19 +510,27 @@ retrieved, and never cited.
 
 ## Tests
 
-Nineteen offline unit tests cover the generation configuration (Gemini 3 vs
-older models), the 400 retry without a thinking hint, error classification and
-response parsing, and the model-availability probe (ready, unavailable,
-unauthorized, unknown, caching, no key in the payload). They never call the
-Gemini API and need no key:
+Ninety-two offline tests run without an API key or network access. They cover
+upload validation, the processing and retry paths, revision activation and
+archival, retrieval exclusion for every non-active status, authentication,
+role enforcement, CSRF, rate limiting (per account and per client address),
+session expiry, audit logging and the original chat contract. Each test uses its own temporary database, upload
+directory and vector store, and replaces Gemini embeddings with a deterministic
+stub.
 
 ```bat
 python -m unittest discover -s tests -t . -v
 python -m compileall backend tests
 ```
 
+Test files: `tests/test_gemini_integration.py`, `tests/test_status_availability.py`,
+`tests/test_document_management.py`, `tests/test_access_control.py`.
+
 Live checks against a configured key are a separate manual run — see
-`Project status` below.
+`Project status` below and `DOCUMENT_UPLOAD_TEST_REPORT.md`, which records the
+HTTP validation run (86 pass, one fixture-related fail that passed on retest),
+the three defects fixed during it and the browser walkthrough of the management
+screen.
 
 ## Screenshots and demo
 
@@ -416,8 +561,17 @@ of questions to ask, and a recording checklist.
 - `DEBUG` is off by default (`.env.example` ships `DEBUG=False`), so an
   unexpected error cannot return a traceback or frame locals to the browser.
   Set `DEBUG=True` only while developing locally.
-- The app has **no authentication** and binds to the local network. Do not port
-  forward it or expose it to the internet.
+- Management requires an account. Passwords are stored only as salted
+  PBKDF2-HMAC-SHA256 hashes (600,000 iterations), session cookies are HttpOnly
+  and SameSite=Lax, and each mutating request needs the session's CSRF token.
+- Session cookies are marked `Secure` automatically when the request arrives over
+  HTTPS (or set `SESSION_COOKIE_SECURE=true` behind a TLS proxy). On plain local
+  HTTP the flag is omitted so the cookie still works; do not expose that setup to
+  the internet.
+- Repeated failed sign-ins are refused for a window: `LOGIN_MAX_ATTEMPTS`
+  (5) per account and `LOGIN_IP_MAX_ATTEMPTS` (20) per client address, and every
+  attempt is audited.
+- Passwords are never written to logs, audit records or API responses.
 - Answers should support, not replace, the controlled SOP and the responsible
   supervisor.
 
@@ -431,18 +585,33 @@ of questions to ask, and a recording checklist.
   chunks.
 - The similarity floor (0.30) and `RETRIEVAL_TOP_K` (5) are sensible defaults,
   but have not been tuned on a large corpus.
-- Single-plant, single-collection deployment; no user accounts, no audit trail,
-  no document upload UI.
+- Single-plant, single-collection deployment with local SQLite accounts; no
+  SSO or external identity provider.
+- The chat itself stays open on the plant network (by design) while document
+  management requires a session; the assistant therefore does not attribute
+  questions to employees.
+- Corporate proxy/TLS termination is out of scope; run it yourself if the app
+  must be reached over HTTPS.
+- Uploaded revisions are processed inside the upload request, and activation uses
+  an in-process lock, so run one Uvicorn worker.
 
 ## Project status
 
-Stages 1–6 are implemented: foundation, PDF processing, embeddings/ChromaDB,
-RAG, FastAPI + dashboard, and documentation.
+Stages 1–7 are implemented: foundation, PDF processing, embeddings/ChromaDB,
+RAG, FastAPI + dashboard, documentation, and the document-management system
+with role-based access control.
 
 Ingestion and live generation were verified against the Gemini API with
 `gemini-embedding-001` and `gemini-3.5-flash-lite`: 15 active chunks indexed, and
 the six questions below answered from the correct document, revision and page.
 The unanswerable question returns the fallback sentence with no sources.
+
+The document-management stage was validated over the real HTTP API and in a
+browser: role matrix, CSRF, upload failure modes, workflows A–E, the audit trail
+and a mobile viewport. Three defects found in that pass — an address-wide login
+lockout, a CSS rule that defeated `hidden`, and rejected PDFs left on disk on
+Windows — were fixed and covered by tests. Results, including what was not run,
+are in `DOCUMENT_UPLOAD_TEST_REPORT.md`.
 
 **Verified questions** (live API, sources as returned):
 

@@ -136,13 +136,101 @@ class VectorStore:
 
     # --- reads ---
 
-    def count(self) -> int:
+    def count(self, where: Mapping[str, Any] | None = None) -> int:
+        """Count stored chunks, optionally restricted by a metadata filter."""
         try:
-            return int(self._get_collection().count())
+            collection = self._get_collection()
+            if not where:
+                return int(collection.count())
+            result = collection.get(where=dict(where), include=[])
+            return len(result.get("ids") or [])
         except VectorStoreError:
             raise
         except Exception as exc:  # noqa: BLE001
             raise VectorStoreError("Could not count indexed chunks") from exc
+
+    # --- document-scoped maintenance (management workflow) ---
+
+    def managed_chunk_ids(self) -> set[str]:
+        """Chunk ids created by the upload workflow, not by the baseline CLI.
+
+        The baseline ingestion command removes chunks that are no longer in
+        ``active_chunks.json``; managed chunks are governed by activation and
+        archival instead, so that cleanup must leave them alone.
+        """
+        try:
+            result = self._get_collection().get(
+                where={"managed": "yes"}, include=["metadatas"]
+            )
+        except Exception as exc:  # noqa: BLE001
+            raise VectorStoreError("Could not read managed chunks") from exc
+        return {str(chunk_id) for chunk_id in (result.get("ids") or [])}
+
+    def metadata_for_document(self, document_id: str) -> dict[str, dict[str, Any]]:
+        """Map chunk id -> metadata for every chunk of one document revision."""
+        try:
+            result = self._get_collection().get(
+                where={"document_id": document_id}, include=["metadatas"]
+            )
+        except Exception as exc:  # noqa: BLE001
+            raise VectorStoreError("Could not read the document's indexed chunks") from exc
+        ids = result.get("ids") or []
+        metadatas = result.get("metadatas") or []
+        return {
+            str(chunk_id): dict(metadata or {})
+            for chunk_id, metadata in zip(ids, metadatas)
+        }
+
+    def delete_by_document(self, document_id: str) -> int:
+        """Remove every chunk of one document revision; returns the count."""
+        chunk_ids = list(self.metadata_for_document(document_id))
+        self.delete(chunk_ids)
+        return len(chunk_ids)
+
+    def update_chunk_metadata(
+        self, document_id: str, fields: Mapping[str, Any]
+    ) -> int:
+        """Refresh selected metadata fields (title, revision) on every chunk."""
+        metadatas = self.metadata_for_document(document_id)
+        if not metadatas or not fields:
+            return 0
+        ids = list(metadatas)
+        updated: list[dict[str, Any]] = []
+        for chunk_id in ids:
+            metadata = dict(metadatas[chunk_id])
+            metadata.update({str(key): value for key, value in fields.items()})
+            updated.append(metadata)
+        try:
+            self._get_collection().update(ids=ids, metadatas=updated)
+        except Exception as exc:  # noqa: BLE001
+            raise VectorStoreError("Failed to update chunk metadata") from exc
+        return len(ids)
+
+    def set_document_status(
+        self, document_id: str, status: str, *, managed: bool = True
+    ) -> int:
+        """Rewrite ``document_status`` on every chunk of one revision.
+
+        Embeddings and text are untouched: this is a metadata transition, used
+        by activation and archival so the vector store never disagrees with the
+        document records.
+        """
+        metadatas = self.metadata_for_document(document_id)
+        if not metadatas:
+            return 0
+        ids = list(metadatas)
+        updated: list[dict[str, Any]] = []
+        for chunk_id in ids:
+            metadata = dict(metadatas[chunk_id])
+            metadata["document_status"] = status
+            if managed:
+                metadata["managed"] = "yes"
+            updated.append(metadata)
+        try:
+            self._get_collection().update(ids=ids, metadatas=updated)
+        except Exception as exc:  # noqa: BLE001
+            raise VectorStoreError("Failed to update chunk status in the vector store") from exc
+        return len(ids)
 
     def query(
         self,

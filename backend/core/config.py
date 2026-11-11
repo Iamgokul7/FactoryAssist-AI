@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     # The key is intentionally optional: the application must start (and report
     # its status) without it, and AI features raise a clear error until it is set.
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-3.5-flash-lite"
     gemini_embedding_model: str = "gemini-embedding-001"
     gemini_temperature: float = 0.2
     gemini_max_output_tokens: int = 1024
@@ -73,6 +73,33 @@ class Settings(BaseSettings):
     # --- API limits ---
     max_question_length: int = 1000
 
+    # --- Document management (uploads, records, audit database) ---
+    # Uploaded PDFs and the management records live outside the controlled
+    # corpus folders on purpose: only an approved activation moves content into
+    # the searchable index.
+    managed_data_directory: Path = Path("data/managed")
+    uploads_directory: Path = Path("documents/uploads")
+    max_upload_size_mb: int = 25
+
+    # --- Authentication and access control ---
+    # Session lifetime in hours; expired sessions are rejected and purged.
+    session_ttl_hours: int = 8
+    session_cookie_name: str = "fa_session"
+    # auto | true | false. "auto" marks the cookie Secure only when the request
+    # itself arrived over HTTPS, so local HTTP development still works while a
+    # TLS-terminated deployment gets a Secure cookie automatically.
+    session_cookie_secure: str = "auto"
+    login_max_attempts: int = 5
+    # A failure on one account must not lock out everyone behind the same NAT.
+    # This higher threshold catches spraying across many account names.
+    login_ip_max_attempts: int = 20
+    login_window_minutes: int = 15
+    # Used once, only when the database has no users yet. Never stored in the
+    # repository: set it in .env (or use the create-admin CLI command instead).
+    initial_admin_username: str = ""
+    initial_admin_password: str = ""
+    initial_admin_full_name: str = "Plant Administrator"
+
     # --- Frontend ---
     frontend_directory: Path = Path("frontend")
 
@@ -86,6 +113,8 @@ class Settings(BaseSettings):
         "archived_documents_directory",
         "sample_questions_directory",
         "processed_data_directory",
+        "managed_data_directory",
+        "uploads_directory",
         "frontend_directory",
         mode="after",
     )
@@ -100,6 +129,20 @@ class Settings(BaseSettings):
     def is_gemini_configured(self) -> bool:
         """Whether a Gemini API key is present, without exposing its value."""
         return bool(self.gemini_api_key.strip())
+
+    @property
+    def auth_database_path(self) -> Path:
+        """SQLite database holding users, sessions and the audit log."""
+        return self.managed_data_directory / "app.db"
+
+    @property
+    def document_records_path(self) -> Path:
+        """JSON record of every uploaded document revision."""
+        return self.managed_data_directory / "documents.json"
+
+    @property
+    def max_upload_size_bytes(self) -> int:
+        return max(1, self.max_upload_size_mb) * 1024 * 1024
 
 
 @lru_cache(maxsize=1)

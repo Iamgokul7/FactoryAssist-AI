@@ -1,8 +1,9 @@
 # Demo video script — FactoryAssist AI (2–3 minutes)
 
-Target length **2:45**. Everything below is recorded from the running
-application; no slides are required, but the screenshots in `screenshots/` can
-be used as a fallback if a live question is slow.
+Target length **2:45**, plus an optional **1:10** document-management segment.
+Everything below is recorded from the running application; no slides are
+required, but the screenshots in `screenshots/` can be used as a fallback if a
+live question is slow.
 
 **Setup before recording**
 
@@ -122,9 +123,64 @@ revision row ("never retrieved by the assistant").
 
 ---
 
+## Optional extension · 3:00 – 4:10 · Document management
+
+Skip this segment if the brief only asks for the copilot. Record it if you want
+to show the governance half of the product.
+
+### 3:00 – 3:15 · Sign in and dashboard
+
+> Document management is restricted. Employees can ask questions, but only an
+> ADMIN or SOP Manager can change the controlled corpus.
+
+**Screen:** click **Sign in**, enter the manager account, then open
+**Document Management**. Point at the five counters: total, active, pending,
+archived and failed.
+
+### 3:15 – 3:40 · Upload a revision
+
+> A manager drops the PDF, fills in the document identity and revision, and
+> uploads it. It is validated, extracted, chunked and embedded, then held as
+> pending review — it is not searchable yet.
+
+**Screen:** open the upload form, drag in the prepared draft PDF (a revision
+that is *not* already part of the corpus), fill the fields, submit. Show the
+progress bar, then the pending row and its detail panel.
+
+### 3:40 – 3:55 · Pending content is not used
+
+> This is the important part: the new revision exists in the index but not in
+> the answers.
+
+**Screen:** go to **AI Assistant** and ask a question about that document code.
+The citation still names the previously active revision. Return to the register.
+
+### 3:55 – 4:10 · Activate, then audit
+
+> Activation is the only step that makes a revision searchable, and it archives
+> the revision it replaces in the same commit.
+
+**Screen:** click **Activate**, confirm, and show the old row moving to
+Archived. Ask the same question again so the new revision appears in the
+citation. Then, as an administrator, open the audit trail and show the upload,
+activation and archival records.
+
+**If no draft PDF is available:** narrate this segment over the Document
+Management screen with the empty register and the audit list, and say plainly
+that no real revision was uploaded for the recording. Do not stage a fake
+activation.
+
+---
+
 ## Recording checklist
 
 - [ ] Server running on <http://127.0.0.1:8000>, both badges green.
+- [ ] Administrator and manager accounts exist (`ADMIN_SETUP_GUIDE.md`). If you
+      are using an account left over from testing, set a password you know first:
+      `python -m backend.services.auth_store reset-password --username <name>`.
+- [ ] A real draft revision PDF is ready if you record the management segment.
+- [ ] Signed out before the first take; sign in only during the management
+      segment so the chat part stays focused.
 - [ ] `.env` is not open in any editor, terminal or window that will be recorded.
 - [ ] Terminal window cleared of any command output containing a key; no
       `env`, `set`, `pip config` or `.env` content on screen.

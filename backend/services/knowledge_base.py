@@ -1,7 +1,13 @@
-"""Read-only access to the processed document manifest.
+"""Read-only access to the document corpus metadata.
 
-The manifest produced by the Stage 2 pipeline is the source of truth for
-document metadata and for which revision of each document is active.
+Two sources are combined here:
+
+* the Stage 2 manifest, which describes the original curated documents;
+* the management store, which describes documents uploaded and approved
+  through the management interface.
+
+Keeping the merge in one place means the dashboard, the status endpoint and the
+retrieval service all agree on which revision of each document is active.
 """
 
 from __future__ import annotations
@@ -12,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from backend.core.config import settings
+from backend.services import management_store
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +57,7 @@ def load_manifest() -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
-def documents() -> list[dict[str, Any]]:
-    """All processed documents, trimmed to the fields the API and UI need."""
+def _manifest_documents() -> list[dict[str, Any]]:
     manifest = load_manifest() or {}
     raw = manifest.get("documents")
     if not isinstance(raw, list):
@@ -63,17 +69,80 @@ def documents() -> list[dict[str, Any]]:
     ]
 
 
+def _managed_documents() -> list[dict[str, Any]]:
+    """Uploaded revisions, projected onto the manifest's field names."""
+    try:
+        records = management_store.get_document_store().all()
+    except Exception as exc:  # noqa: BLE001 - corpus views must still render
+        logger.error("Managed document records unavailable: %s", type(exc).__name__)
+        return []
+
+    projected: list[dict[str, Any]] = []
+    for record in records:
+        projected.append(
+            {
+                "document_id": record.get("document_key"),
+                "document_code": record.get("document_code"),
+                "document_title": record.get("document_title"),
+                "document_type": record.get("category"),
+                "revision": record.get("revision"),
+                "effective_date": record.get("effective_date"),
+                "document_status": record.get("status"),
+                "page_count": record.get("page_count"),
+                "chunk_count": record.get("chunk_count"),
+                "source_filename": record.get("source_filename"),
+                "supersedes_document_id": record.get("supersedes_document_key"),
+                "superseded_by_document_id": record.get("superseded_by_document_key"),
+                "managed": True,
+            }
+        )
+    return projected
+
+
+def documents() -> list[dict[str, Any]]:
+    """All known documents, with managed status changes applied."""
+    manifest_documents = _manifest_documents()
+    managed = _managed_documents()
+
+    # An archived managed record supersedes the matching manifest entry, so the
+    # dashboard cannot keep calling a replaced revision "active".
+    managed_status = {
+        (str(doc.get("document_code") or "").lower(), str(doc.get("revision") or "")): str(
+            doc.get("document_status") or ""
+        )
+        for doc in managed
+    }
+    for document in manifest_documents:
+        key = (
+            str(document.get("document_code") or "").lower(),
+            str(document.get("revision") or ""),
+        )
+        override = managed_status.get(key)
+        if override:
+            document["document_status"] = override
+
+    return [*manifest_documents, *managed]
+
+
 def documents_by_status(status: str) -> list[dict[str, Any]]:
     return [doc for doc in documents() if doc.get("document_status") == status]
 
 
 def active_revisions() -> dict[str, str]:
-    """Map document code -> active document id (e.g. QC-SOP-014 -> ...-rev04)."""
+    """Map document code -> active document id (e.g. QC-SOP-014 -> ...-rev04).
+
+    A revision activated through the management interface always wins over the
+    manifest entry for the same code.
+    """
     manifest = load_manifest() or {}
     raw = manifest.get("active_revisions")
-    if not isinstance(raw, dict):
-        return {}
-    return {str(code): str(document_id) for code, document_id in raw.items()}
+    merged: dict[str, str] = (
+        {str(code): str(document_id) for code, document_id in raw.items()}
+        if isinstance(raw, dict)
+        else {}
+    )
+    merged.update(management_store.active_document_keys())
+    return merged
 
 
 def corpus_summary() -> dict[str, Any]:
@@ -82,11 +151,17 @@ def corpus_summary() -> dict[str, Any]:
     summary = manifest.get("summary") if isinstance(manifest.get("summary"), dict) else {}
     active = documents_by_status("active")
     archived = documents_by_status("archived")
+    managed_active_chunks = sum(
+        int(document.get("chunk_count") or 0)
+        for document in active
+        if document.get("managed")
+    )
     return {
         "manifest_available": bool(manifest),
         "generated_at": manifest.get("generated_at"),
         "active_document_count": len(active),
         "archived_document_count": len(archived),
-        "processed_active_chunks": int(summary.get("active_chunks") or 0),
+        "processed_active_chunks": int(summary.get("active_chunks") or 0)
+        + managed_active_chunks,
         "active_revisions": active_revisions(),
     }
