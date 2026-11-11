@@ -1,228 +1,218 @@
-# Final submission report — FactoryAssist AI
+Final Submission Report — FactoryAssist AI
+Report date: 11 November 2026
+Repository: Iamgokul7/FactoryAssist-AI
+Branch: master
+Project status: Engineering implementation and documented validation completed; public repository and demo assets available.
+Scope and evidence note: This report consolidates the Stage 6 engineering audit with the subsequent Stage 7 document-management implementation and validation. Historical Stage 6 results are identified as historical where relevant. The latest reported automated test result is 92 passing tests. The demo video and screenshots are recorded deliverables, but the video does not demonstrate document submission, activation, or archival. Repository status below reflects the last status supplied for this review: the initial repository and banner commits are pushed; the later documentation and demo-asset changes are still uncommitted. Recheck git status before treating that repository detail as current.
 
-> **Snapshot note (11 November 2026):** this file records the stage-6 audit, when
-the suite held 19 tests. Stage 7 (document management, accounts, audit) was
-validated afterwards; its results are in `DOCUMENT_UPLOAD_TEST_REPORT.md` and
-`DOCUMENT_MANAGEMENT_IMPLEMENTATION_REPORT.md`, and the suite now holds 92
-tests. The audit below is kept as the historical record; where the two disagree,
-the stage-7 reports describe the current code.
+1. Executive Summary
+FactoryAssist AI is a document-grounded manufacturing SOP copilot. It helps manufacturing personnel ask questions about controlled SOPs and maintenance manuals, retrieves relevant document passages, generates evidence-based answers, and provides source citations. When the indexed evidence is insufficient, it abstains rather than presenting an unsupported answer.
 
-Audit date: **10 November 2026**. Repository: `S:\BiztelAI Technologies. Assesment`,
-branch `master`, HEAD `905ce5c`.
+The application also includes document-management capabilities for controlled document uploads, revision review, activation and archival workflows, role-based access control, and audit records.
 
-**Overall status: NOT YET SUBMISSION-READY.** All engineering and validation
-work passes. Submission is blocked on three things only you can supply: your
-confirmation of the personal reflections, your real Git author email (and the
-commit itself), and — if the brief requires them — a recorded demo video and a
-GitHub remote.
+The project is implemented as a Python FastAPI application with a browser-based interface. Its retrieval pipeline uses Google Gemini embeddings and generation with ChromaDB as the persistent vector store. Document metadata and management records are maintained locally using SQLite and JSON.
 
----
+Current validation summary
+- Automated tests: 92 passed in the latest reported run.
+- Code and dependency checks: compileall, pip check, and JavaScript syntax validation passed in the reported validation run.
+- Functional validation: Chat, citations, abstention, document upload and governance, authentication, role restrictions, and audit workflows were exercised.
+- Demo assets: A 4:37 MP4 recording, an approximately 17-second workflow GIF, and ten screenshots are available in the repository assets directory.
+- Deployment: This report does not claim a production or cloud deployment.
+2. Project Overview
+2.1 Problem
+Manufacturing teams rely on controlled procedures, maintenance manuals, and revision-sensitive technical documents. Finding the correct instruction can be difficult when information is spread across PDFs or when superseded revisions remain accessible.
+2.2 Solution
+FactoryAssist AI provides a conversational interface over an indexed document collection. It retrieves relevant passages from active documents, uses those passages as evidence for generation, and returns citations that identify the source document, revision, and page where available.
 
-## 1. Project overview
+The system is designed to:
+- Answer questions using indexed manufacturing documentation.
+- Cite the evidence used to formulate an answer.
+- Abstain when the available evidence does not support an answer.
+- Exclude archived or superseded revisions from active retrieval.
+- Provide controlled document-management workflows with role-based permissions.
+2.3 Main interface areas
+- Dashboard
+- AI Assistant
+- Knowledge Base
+- System Info
+- Document-management and administrative workflows
+3. Technology Stack
+Layer	Technology
+Runtime	Python (project target: Python 3.12)
+API framework	FastAPI
+ASGI server	Uvicorn
+LLM integration	Google Gen AI SDK
+Generation model	gemini-3.5-flash-lite
+Embedding model	gemini-embedding-001
+Vector database	ChromaDB
+PDF extraction	PyMuPDF
+Configuration	Pydantic Settings
+Management persistence	SQLite and JSON metadata
+Frontend	HTML, CSS, vanilla JavaScript
+Automated tests	Python unittest
 
-FactoryAssist AI is a local, document-grounded copilot for manufacturing
-supervisors. It answers questions about the plant's controlled SOPs and
-maintenance manuals using retrieval-augmented generation over a small corpus of
-PDFs, cites the document code, revision and page for every answer, refuses when
-the evidence is insufficient, and keeps a superseded revision out of retrieval.
 
-Delivered as a FastAPI application with a static multi-view dashboard (Dashboard,
-AI Assistant, Knowledge Base, System Info) served from the same origin.
+The application does not use React, Next.js, Flask, LangChain, or LlamaIndex.
+4. Core Application and RAG Implementation
+4.1 Document ingestion
+The ingestion pipeline extracts text from PDF documents, retains page-level context, creates chunks with document metadata, and indexes eligible content for retrieval.
 
-## 2. Technology stack
+The Stage 6 audit recorded the following baseline corpus:
+Item	Recorded value
+Documents processed	5
+Active documents	3
+Archived documents	1
+Sample-questions document	1
+Pages extracted	8
+Active chunks	15
+Archived chunks	3
+Extraction warnings / errors	0 / 0
 
-| Layer | Technology | Version |
-| --- | --- | --- |
-| Runtime | Python | 3.12 existing venv (3.14 verified in fresh install) |
-| API | FastAPI / Uvicorn | 0.162.2 / 0.54.0 |
-| Generation | Google Gen AI SDK, `gemini-3.5-flash-lite` | google-genai 2.34.0 |
-| Embeddings | `gemini-embedding-001` | same SDK |
-| Vector store | ChromaDB (persistent, cosine) | 1.5.9 |
-| PDF extraction | PyMuPDF | 2.1 |
-| Configuration | pydantic-settings + `.env` | 2.16.2 |
-| Frontend | HTML, CSS, vanilla JavaScript | no build step |
-| Tests | stdlib `unittest` | — |
 
-No React, Next.js, Flask, LangChain or LlamaIndex is used.
+These figures describe the corpus at the time of that audit; they should not be interpreted as a live count if the local document collection has since changed.
+4.2 Retrieval and answer generation
+The RAG workflow:
+1. Receives a user question.
+2. Embeds the query using the configured embedding model.
+3. Retrieves relevant chunks from the persistent ChromaDB collection.
+4. Restricts retrieval to active document content.
+5. Supplies retrieved evidence to the generation model.
+6. Validates the structured model response.
+7. Builds citations from retrieved source metadata.
+8. Returns an answer or an insufficient-evidence response.
+The Stage 6 audit recorded top-5 retrieval, a cosine-similarity floor of 0.30, and a second active-revision manifest check. The archived QC-SOP-014 Rev 03 did not appear in retrieval results, citations, or answers during that audit.
+4.3 Grounding and abstention
+The application is designed to avoid presenting unsupported answers as facts. When the available evidence is insufficient, the system returns its configured fallback response without source citations.
 
-## 3. Completed implementation — **PASS**
+The historical validation included an annual factory electricity-consumption question for which the knowledge base had no supporting evidence. The system returned insufficient_evidence with no cited source.
+5. Document Management
+Stage 7 added document-management workflows alongside the original RAG assistant.
 
-- PDF pipeline with a verified document registry, page-level extraction, chunk
-  metadata and a manifest of active/archived revisions.
-- Incremental ingestion: SHA-256 content hashes skip unchanged chunks; upsert by
-  stable chunk ID.
-- Retrieval: top-5, cosine similarity, 0.30 floor, active-status filter, second
-  manifest check, and no generation call when evidence is empty.
-- Grounded generation: strict JSON schema (`answer`, `supported`,
-  `used_source_indices`), citations built from retrieved chunks only.
-- Model-family thinking configuration (`thinking_level` for Gemini 3, none for
-  2.x/aliases) with one retry without the hint on HTTP 400.
-- Classified errors, redacted diagnostics, timeouts, retry of 429/5xx once.
-- `/api/status` reports real model availability through a cached model-list
-  probe (TTL 600 s, own 10 s timeout, `?refresh=true`).
-- Dashboard surfaces model state (badge, KPI, System Info row) and error states.
+Reported capabilities include:
+- Document registration and management views.
+- PDF upload and validation.
+- Safe handling of uploaded filenames.
+- Document metadata and revision tracking.
+- Review and activation workflow.
+- Archiving and superseded-revision handling.
+- Role-based access control.
+- Audit-event recording.
+- Protection of active retrieval from pending or archived content.
+The management implementation uses SQLite for structured management records and JSON metadata for document information. The document-management report and test report contain the detailed implementation and validation records.
 
-## 4. PDF ingestion status — **PASS**
+Demo coverage limitation: The published recording shows the document-management area and a populated upload form, but the form is not submitted during the recording. The video therefore does not demonstrate a completed upload, activation, or archive action. Those workflows were separately exercised during functional and browser validation.
+6. Authentication and Security
+Stage 7 introduced authentication and access controls for document-management operations.
 
-| Item | Value |
-| --- | --- |
-| Documents processed | 5 (3 active, 1 archived, 1 sample questions) |
-| Pages extracted | 8 |
-| Active chunks | 15 |
-| Archived chunks | 3 (not embedded) |
-| Extraction warnings / errors | 0 / 0 |
-| Chunking | 900 characters, 150 overlap, page-scoped |
+The implementation report records:
+- Role categories for ADMIN, SOP_MANAGER, and EMPLOYEE.
+- Password hashing using PBKDF2-HMAC-SHA256 with 600,000 iterations.
+- Opaque session tokens, with SHA-256 fingerprints stored server-side.
+- HttpOnly and SameSite cookie settings.
+- CSRF and Origin/Host validation.
+- Login rate limiting.
+- Security response headers.
+- Role checks for protected management operations.
+- Redacted and bounded error diagnostics.
+The public chat interface is intentionally accessible without a management-role session. Protected document-management operations require the relevant authenticated role.
+6.1 Repository hygiene
+The reported repository audit found that .env, local databases, PDFs, logs, virtual environments, and ChromaDB data were excluded from version control. The configured API key was not found in the scanned working tree or Git history, and .env was not committed.
 
-Source: `data/processed/document_manifest.json` (generated 09-Nov-2026
-15:20 UTC).
+These are results of the documented repository scan, not a guarantee that no secret could exist in any future change. Continue to review staged files and diffs before every commit.
+7. Automated and Functional Validation
+7.1 Latest automated test result
+The latest reported test run completed with:
+Check	Reported result
+Automated test suite	92 passed
+Python compilation (compileall)	Passed
+Dependency consistency (pip check)	Passed
+JavaScript syntax (node --check)	Passed
 
-## 5. RAG retrieval validation — **PASS**
 
-- Collection `factoryassist_active_documents`, 15 records, persistence under
-  `vector_store/chroma_db/`.
-- Query filter `document_status == "active"`, threshold 0.30, top 5.
-- Best-match similarity across the five answerable questions: **0.688–0.789**,
-  comfortably above the floor; the electricity question's best match is 0.60
-  but still produces no grounded answer because the model reports no support.
-- **QC-SOP-014 Rev 03 appeared in no retrieval result, citation or answer in any
-  test.**
+The Stage 7 reports attribute the 92 tests to 73 document-management/access-control tests and 19 earlier application tests.
+7.2 Live API validation
+The document-management validation report records a live HTTP validation run of 86 passing checks, one failing check, and two informational results. The failure involved a sparse synthetic PDF whose retrieved evidence fell below the configured retrieval threshold. The case was repeated using a denser test fixture and passed.
 
-## 6. Gemini integration status — **PASS**
+This historical result is reported transparently; it is not represented as an entirely clean first run.
+7.3 Functional coverage
+The reported validation covered:
+- Chat responses and source citations.
+- Insufficient-evidence handling.
+- Active versus archived revision retrieval.
+- PDF upload validation.
+- Pending, review, activation, rejection, and archive workflows.
+- Authentication and role-based access restrictions.
+- Audit records.
+- Browser-level management workflows.
+- Regression checks for the original chatbot.
+7.4 Known validation gaps
+The reports identify the following areas as not fully validated:
+- OCR for scanned PDFs.
+- Multi-worker deployment behaviour for the in-process activation lock.
+- Load and large-file performance testing.
+- Full long-duration session-expiry behaviour through an eight-hour browser session.
+- Production-scale or multi-plant operation.
+8. Example Knowledge-Base Validation
+The documented QA examples include:
+Question / topic	Expected grounded result
+Coolant concentration	6–8%
+AL-104 way-lubrication action	If low, use ISO VG 68 way lube to MAX, then RESET
+LOTO lock removal	Each authorized person removes their own lock
+BH-220 outside-diameter tolerance	±0.050 mm at 90.000 mm, measured using a digital caliper
+Spindle runout	Monthly check by a maintenance technician
+Annual factory electricity consumption	Abstain when no supporting evidence is available
 
-| Check | Result |
-| --- | --- |
-| Key configured | yes (value never printed) |
-| Generation model | `gemini-3.5-flash-lite` |
-| Embedding model | `gemini-embedding-001` |
-| `/api/status` model state | `ready` (live probe, 1.15 s with `refresh=true`) |
-| Thinking configuration | `thinking_level=low` sent to Gemini 3 only |
-| Unavailable-model behaviour | verified earlier: status `unavailable`, chat HTTP 404 diagnostic, UI shows "AI model unavailable" + "Service error" bubble with 0 sources |
 
-## 7. Automated testing results — **PASS**
+The Stage 6 live test recorded HTTP 200 responses for these six questions, with the electricity question returning insufficient_evidence and no source citation.
+9. Demo and Visual Assets
+The following assets were reported as created:
+Asset	Details
+Demo video	assets/demo/factoryassist-demo.mp4
+Video duration	Approximately 4 minutes 37 seconds
+Video resolution	1920 × 1080
+Video format	H.264 video with AAC audio
+Video frame rate	12 fps
+Workflow GIF	assets/demo/factoryassist-workflow.gif
+GIF duration	Approximately 17 seconds
+GIF dimensions	960 × 540
+Screenshots	Ten files under assets/screenshots/
 
-| Check | Command | Result |
-| --- | --- | --- |
-| Compilation | `python -m compileall backend tests` | exit 0 |
-| Test suite | `python -m unittest discover -s tests -t .` | **19 tests, OK** (0.032 s) |
-| Dependencies | `python -m pip check` | `No broken requirements found` |
-| Fresh environment | see `FRESH_INSTALL_REPORT.md` | install + 19 tests pass |
 
-## 8. Live test results — **PASS**
+The demo narration uses a synthetic Windows SAPI voice. The recording shows the dashboard, knowledge base, system information, three grounded questions, an abstention example, sign-in and role-gating views, and the unsubmitted document-upload form.
 
-Executed against the running application on `http://127.0.0.1:8000`.
+The screenshots include desktop and mobile-sized captures. Their actual dimensions vary; they should not all be described as 1920 × 1080.
+10. Fresh-Environment Installation Check
+The fresh-install report records a successful installation in a new virtual environment using Python 3.14.6, with 102 packages installed. Compilation, dependency checks, imports, application endpoint checks, and the then-current 19-test suite passed.
 
-| # | Question | HTTP | Status | Time | Source cited |
-| --- | --- | --- | --- | --- | --- |
-| 1 | Coolant concentration | 200 | answered | 2.5 s | MNT-MAN-CNC-02 Rev 02, p1 (0.727) |
-| 2 | AL-104 meaning/action | 200 | answered | 3.9 s | MNT-MAN-CNC-02 Rev 02, p2 (0.749) |
-| 3 | LOTO lock removal | 200 | answered | 2.1 s | SAF-SOP-003 Rev 05, p1 (0.789) |
-| 4 | BH-220 OD tolerance | 200 | answered | 5.1 s | QC-SOP-014 **Rev 04**, p2 (0.696) |
-| 5 | Spindle runout | 200 | answered | 5.6 s | MNT-MAN-CNC-02 Rev 02, p1 (0.688) |
-| 6 | Annual electricity | 200 | `insufficient_evidence` | 6.0 s | none |
+The project target remains Python 3.12. The Python 3.14.6 installation check is additional compatibility evidence; it does not replace validation on the documented target runtime.
 
-Answers were correct in content: 6–8 % coolant; way lube low → ISO VG 68 to MAX
-then RESET; each person removes only their own lock; ±0.050 mm at 90.000 mm with
-a digital caliper; monthly by a maintenance technician; and the fixed fallback
-sentence with zero sources for electricity.
+The fresh-install test run occurred before the Stage 7 test-suite expansion. It therefore reports 19 tests, not the later 92-test result.
+11. Repository and Delivery Status
+The public repository is:
 
-Response times were slower than the earlier 1.5–2.3 s run (2.1–6.0 s here),
-which is API latency variation; `THINKING.md` was updated to state both.
+https://github.com/Iamgokul7/FactoryAssist-AI
 
-API input validation re-checked: whitespace question → `400 Please enter a
-question.`; missing field → `422` with a standard validation detail.
+The initial repository commit and the banner commit were pushed. The later documentation updates and demo assets were reported as modified or untracked and had not yet been committed or pushed at the last recorded status check.
 
-## 9. Security checks — **PASS**
+Before final delivery:
+1. Run git status and inspect the exact changed-file list.
+2. Review git diff --check and the full diff.
+3. Confirm no secrets, personal information, local databases, PDFs, logs, or private test artifacts are staged.
+4. Decide whether internal audit reports belong in the public repository.
+5. Stage only the files intended for publication.
+6. Commit and push only after reviewing the staged diff.
+No production or cloud deployment is claimed in this report.
+12. Known Limitations and Future Improvements
+- Synchronous processing: Document processing is synchronous and may need background jobs for larger workloads.
+- Single-process coordination: The activation lock is in-process; multi-worker deployment requires a shared coordination mechanism.
+- No OCR: Scanned PDFs without extractable text are not covered by the current PDF text-extraction workflow.
+- Local persistence: SQLite and JSON are suitable for the current local/single-plant scope, but a larger deployment may require a production database and storage architecture.
+- Performance: Load testing and large-document performance testing remain future work.
+- Session-duration testing: Full eight-hour browser-session expiry has not been validated end-to-end.
+- Cloud deployment: A production deployment, monitoring, backup automation, and CI/CD pipeline are not claimed as completed.
+13. Final Assessment
+FactoryAssist AI has progressed beyond the original Stage 6 RAG prototype. The current implementation includes a grounded manufacturing SOP assistant, revision-aware retrieval, document-management workflows, role-based access controls, and audit functionality.
 
-| Check | Result |
-| --- | --- |
-| Exact configured key in Git history | **none** |
-| Exact key in working tree (excluding `.env`) | **none** |
-| `AIza…` / `sk-…` patterns in tree or history | none |
-| `.env` ever committed | **never** |
-| `.env`, logs, `.venv`, `chroma_db`, `data/processed`, PDFs ignored | verified with `git check-ignore` |
-| Tracked files | 47, no secrets, no PDFs, no database, no logs |
-| Key in API responses / UI | none (only `configured: true`) |
-| Error diagnostics | redacted, truncated to 300 chars |
-| `DEBUG` | `False` in config, `.env.example` and `.env` |
-| Auth | none — single-user local deployment (documented limitation) |
+The latest reported automated suite has 92 passing tests, and the project has a public GitHub repository plus recorded demo and screenshot assets. The documented validation also identifies remaining limitations and test gaps rather than presenting the project as production-ready.
 
-`vector_store/.gitkeep` is tracked intentionally to preserve the directory.
-
-## 10. Documentation status
-
-| Document | Status | Notes |
-| --- | --- | --- |
-| `THINKING.md` | **PASS (technical) / BLOCKED (personal)** | 22 sections numbered 1–22; 6 code fences balanced; all tables well-formed; §3 has the AI-critique introduction; §5.1–5.3 renamed; §7 diagram lists `sample_questions_extracted`; no secrets |
-| `PERSONAL_REFLECTIONS_TO_CONFIRM.md` | **PASS** | 23 statements listed by section, with verified facts separated out |
-| `README.md` | **PASS** | Setup, endpoints, status/model availability, tests, screenshots, security notes |
-| `DEMO_SCRIPT.md` | **PASS** | Timed 2:45 narration + fallback guidance |
-| `DEMO_RECORDING_CHECKLIST.md` | **PASS** | Pre-flight, screen hygiene, shot order, expected outputs |
-| `FRESH_INSTALL_REPORT.md` | **PASS** | Clean-environment results |
-| `GIT_SETUP_REQUIRED.md`, `GITHUB_SETUP_REQUIRED.md` | **PASS** | Exact commands, nothing executed |
-
-The reflections in §1, §2, §3, §4, §6 and §21 remain **unconfirmed personal
-statements**. They were preserved as written, not presented as verified. The
-Section 3 sentence asserts an AI produced the critique; that is consistent with
-the section title but still needs your confirmation (item 3.1 in
-`PERSONAL_REFLECTIONS_TO_CONFIRM.md`).
-
-## 11. Screenshot status — **PASS**
-
-| File | Purpose | Size |
-| --- | --- | --- |
-| `01-dashboard.png` | Dashboard, KPIs, badges | 1280×900 |
-| `02-assistant-coolant.png` | Coolant answer + citation | 1280×900 |
-| `03-assistant-al104.png` | AL-104 answer + citation | 1280×900 |
-| `04-assistant-loto.png` | LOTO answer + citation | 1280×900 |
-| `05-source-citations.png` | Citation detail (QC-SOP-014 Rev 04 p2) | 1896×510 (2× crop) |
-| `06-knowledge-base.png` | Active docs + archived Rev 03 | 1280×900 |
-| `07-system-info.png` | Model availability, config, API surface | 1280×900 |
-| `08-abstention-electricity.png` | Refusal, no sources | 1280×900 |
-
-All eight exist, were opened and visually checked during this audit, and match
-their documented purpose. They were captured from the running application; none
-were regenerated in this run because none was missing or stale.
-
-## 12. Demo video status — **NOT RUN**
-
-No video file exists and none was recorded. `DEMO_SCRIPT.md` and
-`DEMO_RECORDING_CHECKLIST.md` are ready; recording is yours to do.
-
-## 13. Git status — **BLOCKED**
-
-| Item | State |
-| --- | --- |
-| Branch | `master` |
-| Commits | `905ce5c`, `aa1fbf5`, `c511a1a`, `083ac7b` (history intact) |
-| `user.name` / `user.email` | `Gokul P` / **`your-email@example.com` (placeholder)** |
-| Modified / untracked | `THINKING.md` modified; new audit documents untracked |
-| Staged | documentation staged for review, **no commit created** |
-| Remote | none |
-
-Blocked on the author email; `GIT_SETUP_REQUIRED.md` has the exact commands.
-
-## 14. GitHub status — **BLOCKED**
-
-No remote is configured and no repository was created. Nothing was pushed or
-published. `GITHUB_SETUP_REQUIRED.md` covers both the CLI and browser routes,
-with private visibility recommended.
-
-## 15. Remaining actions requiring your input
-
-1. **Confirm the personal reflections** in `PERSONAL_REFLECTIONS_TO_CONFIRM.md`
-   (items 1.1–1.4, 2.1–2.4, 3.1–3.4, 4.1–4.4, 6.1–6.3, 21.1–21.6), including
-   item 3.1 about the AI-critique attribution.
-2. **Set your real Git email** (`git config --local user.email …`).
-3. **Commit** the staged documentation once (1) and (2) are done.
-4. **Create the private GitHub repository and push**, if the submission requires
-   it — only with your approval.
-5. **Record the demo video**, if the brief requires one.
-6. Optional: decide whether the report/audit files belong in the submission
-   repository; they can be unstaged with `git restore --staged <file>`.
-
-## What prevents submission today
-
-- Unconfirmed personal reflections (content risk, not a technical failure).
-- Placeholder Git author email, so no commit has been made.
-- No remote configured (only matters if the submission is a GitHub link).
-- No demo video (only matters if the brief requires a video).
+Submission recommendation: The engineering work and demo materials are available for review. Before calling the repository fully submission-ready, reconcile and publish the latest documentation/assets, verify the final Git status and staged diff, and confirm that the public repository contains only the intended submission materials.

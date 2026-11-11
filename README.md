@@ -12,6 +12,8 @@ and quality SOPs — with the document code, revision and page number attached.
 The application refuses to answer when the documents do not contain the
 information, and it never retrieves superseded revisions.
 
+[4½-minute walkthrough](assets/demo/factoryassist-demo.mp4) · [workflow GIF](assets/demo/factoryassist-workflow.gif) · [screenshots](assets/screenshots/)
+
 ---
 
 ## Problem
@@ -98,7 +100,7 @@ Four rules hold the design together:
 ## Project structure
 
 ```
-S:\BiztelAI Technologies. Assesment
+factoryassist-ai
 ├── backend/
 │   ├── main.py                     # FastAPI app, dashboard + API
 │   ├── api/
@@ -137,7 +139,11 @@ S:\BiztelAI Technologies. Assesment
 ├── data/managed/                   # Accounts, audit, upload records (git-ignored)
 ├── Documents/uploads/              # Uploaded PDFs (git-ignored)
 ├── vector_store/chroma_db/         # ChromaDB persistence (git-ignored)
-├── screenshots/                    # Captured from the running app
+├── assets/
+│   ├── factoryassist-banner.png    # Repository banner
+│   ├── screenshots/                # 1920 × 1080 captures of the running app
+│   └── demo/                       # Walkthrough video, workflow GIF, narration script
+├── screenshots/                    # Earlier 1280 × 900 captures
 ├── tests/                          # Offline unit tests (no API key)
 ├── requirements.txt
 ├── .env / .env.example
@@ -158,7 +164,7 @@ the three sub-folders.
 ## Installation
 
 ```bat
-cd "S:\BiztelAI Technologies. Assesment"
+cd "factoryassist-ai"
 py -3.12 -m venv .venv
 .venv\Scripts\activate
 python -m pip install --upgrade pip
@@ -536,24 +542,45 @@ HTTP validation run (86 pass, one fixture-related fail that passed on retest),
 the three defects fixed during it and the browser walkthrough of the management
 screen.
 
-## Screenshots and demo
+## Demo
 
-`screenshots/` holds images captured from the running application (1280 × 900,
-headless Chrome against `http://127.0.0.1:8000`), not mock-ups:
+[`assets/demo/factoryassist-demo.mp4`](assets/demo/factoryassist-demo.mp4) is a
+**4:37** walkthrough recorded from the running application (1920 × 1080,
+H.264/AAC, 7.2 MB). It shows the dashboard, the Knowledge Base, the runtime
+configuration, three grounded answers with page-level citations, an explicit
+refusal, and the manager-only document-management screen.
+
+The narration is **synthetic speech** (Windows SAPI) reading the script in
+[`assets/demo/README.md`](assets/demo/README.md), which also lists the scene
+timings and the exact questions asked. Nothing was staged: it is a screen
+recording of `http://127.0.0.1:8000` driven by real HTTP requests, and the
+register is shown empty because no revision was submitted for the recording.
+
+[`assets/demo/factoryassist-workflow.gif`](assets/demo/factoryassist-workflow.gif)
+is a 20-second excerpt of the same flow — dashboard, question, answer, citation.
+
+## Screenshots
+
+`assets/screenshots/` holds ten images captured from the running application, not
+mock-ups: eight at 1920 × 1080, one laptop viewport (1280 × 900) for the
+archived-revision detail and one phone viewport (390 × 844).
 
 | File | Shows |
 | --- | --- |
-| `01-dashboard.png` | Dashboard: KPIs, badges, active documents |
-| `02-assistant-coolant.png` | Coolant answer with citation |
-| `03-assistant-al104.png` | Alarm AL-104 meaning and action |
-| `04-assistant-loto.png` | LOTO lock removal |
-| `05-source-citations.png` | Citation detail — QC-SOP-014 Rev 04, page 2 |
-| `06-knowledge-base.png` | Active documents and the archived Rev 03 |
-| `07-system-info.png` | Model and availability, corpus, API surface |
-| `08-abstention-electricity.png` | Refusal with no sources |
+| `01-dashboard.png` | Dashboard: KPI tiles, corpus table, starter questions |
+| `02-assistant-coolant.png` | Coolant concentration answered from MNT-MAN-CNC-02 Rev 02 p1 |
+| `03-assistant-alarm.png` | Alarm AL-104 answered from page 2 of the same manual |
+| `04-source-citations.png` | BH-220 tolerance answered from QC-SOP-014 **Rev 04** |
+| `05-knowledge-base.png` | Active corpus and the archived Rev 03 |
+| `06-document-upload.png` | Upload form filled with a draft revision, not submitted |
+| `07-revision-management.png` | Knowledge Base at a laptop viewport — archived Rev 03, superseded by Rev 04 |
+| `08-role-permissions.png` | Manager-only Document Management view |
+| `09-abstention.png` | "No matching evidence" with no source card |
+| `10-mobile-view.png` | Assistant answering on a 390 × 844 phone viewport |
 
-`DEMO_SCRIPT.md` contains the 2–3 minute demo narration with timings, the order
-of questions to ask, and a recording checklist.
+The earlier eight captures (1280 × 900) remain in `screenshots/` and are still
+accurate for the assistant views. `DEMO_SCRIPT.md` holds the narration script
+and the recording checklist.
 
 ## Security notes
 
